@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { HERO_BY_ID, type HeroId } from "@/game/heroes";
 import { heroArt, heroLogo } from "@/game/heroArt";
+import costBadge from "@/assets/ui/cost.webp";
+import powerBadge from "@/assets/ui/power.webp";
+import { HERO_EFFECTS } from "@/game/heroEffects";
 import { heroPower } from "@/game/rules";
 import type { Tier } from "@/game/tiers";
 
@@ -42,9 +45,9 @@ export function HeroCard({ id, tier, tilt = false, showStats = true, className =
   };
 
   const upgraded = tier !== "base";
-  const breakOut = tier === "apex" ? 22 : tier === "ascend" ? 15 : 0; // % of card height
+  const breakOut = upgraded ? 3 : 0; // % of card height
   const style = { "--hero": hex(h.color), transform: `perspective(900px) rotateX(${rot.x}deg) rotateY(${rot.y}deg)` } as CSSProperties;
-  const mask = `radial-gradient(ellipse 50% ${breakOut + 26}% at 50% ${breakOut + 16}%, #000 58%, transparent 100%)`;
+  const fx = HERO_EFFECTS[id];
 
   return (
     <div ref={ref} onPointerMove={onPointer} onPointerLeave={() => setRot({ x: 0, y: 0 })} onClick={needPerm ? askPerm : undefined}
@@ -59,25 +62,23 @@ export function HeroCard({ id, tier, tilt = false, showStats = true, className =
       </div>
       {upgraded && (
         <img src={heroArt(id, tier)} alt="" aria-hidden
-          className="pointer-events-none absolute inset-x-[3px] w-[calc(100%-6px)] object-cover object-top"
-          style={{
-            top: `-${breakOut}%`, height: `calc(${100 + breakOut}% - 3px)`,
-            transform: `translate(${rot.y * -1.2}px, ${rot.x * 1.2}px) translateZ(30px) scale(1.06)`,
-            WebkitMaskImage: mask, maskImage: mask,
-          }} />
+          className="pointer-events-none absolute object-cover object-top rounded-[8px]"
+          style={{ left: "-1%", width: "102%", top: `-${breakOut}%`, height: "103%",
+            transform: `translate(${rot.y * -0.6}px, ${rot.x * 0.6}px) translateZ(16px)` }} />
       )}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-background to-transparent" />
       {tier === "apex" && (
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-visible">
           {Array.from({ length: 10 }, (_, i) => (
-            <span key={i} className="apex-spark" style={{ left: `${8 + ((i * 37) % 84)}%`, animationDelay: `${(i * 0.37) % 3}s`, animationDuration: `${2.4 + (i % 4) * 0.5}s` }} />
+            <span key={i} className={`apex-spark apex-${fx.motif}`} style={{ left: `${8 + ((i * 37) % 84)}%`, animationDelay: `${(i * 0.37) % 3}s`, animationDuration: `${fx.speed / 1000 + (i % 3) * 0.2}s`, "--drift": `${fx.drift}px` } as CSSProperties} />
           ))}
         </div>
       )}
       <img src={heroLogo(id)} alt={h.name} className={`absolute bottom-[2%] max-h-[24%] object-contain drop-shadow-lg ${showStats ? "left-[2%] w-[78%]" : "inset-x-[4%] mx-auto w-[92%]"}`} style={{ transform: "translateZ(40px)" }} />
       {showStats && (
         <>
-          <span className="badge-cost absolute -left-[3%] -top-[3%] flex h-[29%] w-[24%] items-center justify-center font-display text-[17cqw] font-bold leading-none text-foreground" style={{ transform: "translateZ(40px)" }}>{h.cost}</span>
-          <span className="badge-power absolute -bottom-[3%] -right-[3%] flex h-[28%] w-[25%] items-center justify-center pb-[3%] font-display text-[17cqw] font-bold leading-none text-primary-foreground" style={{ transform: "translateZ(40px)" }}>{heroPower(id, tier)}</span>
+          <span className="badge-cost absolute -left-[3%] -top-[3%] flex h-[27%] w-[34%] items-center justify-center font-display text-[17cqw] font-bold leading-none text-foreground" style={{ transform: "translateZ(40px)" }}><img aria-hidden src={costBadge} className="absolute inset-0 h-full w-full object-contain" /><span className="relative">{h.cost}</span></span>
+          <span className="badge-power absolute -bottom-[3%] -right-[3%] flex h-[27%] w-[34%] items-center justify-center font-display text-[17cqw] font-bold leading-none text-primary-foreground" style={{ transform: "translateZ(40px)" }}><img aria-hidden src={powerBadge} className="absolute inset-0 h-full w-full object-contain" /><span className="relative">{heroPower(id, tier)}</span></span>
         </>
       )}
       {needPerm && <span className="absolute inset-x-0 -bottom-7 text-center text-xs text-muted-foreground">Tap card to enable tilt</span>}

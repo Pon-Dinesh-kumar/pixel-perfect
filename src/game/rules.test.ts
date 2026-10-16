@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  allUids, canPlay, carrierScore, createGame, effectivePower, endPlayerTurn, energyForTurn, moveCard, nextTurn,
+  beginReveal, revealNext, allUids, canPlay, carrierScore, createGame, effectivePower, endPlayerTurn, energyForTurn, moveCard, nextTurn,
   opponentTurn, playCard, result, takeBack, unlockedSkills, validDeck, heroPower, MAX_TURNS, type DeckEntry, type GameState,
 } from "./rules";
 import { HEROES } from "./heroes";
@@ -10,6 +10,7 @@ import { freshProfile, isValidDeck, reward, sanitize, upgrade } from "./profile"
 const seeded = () => { let s = 7; return () => ((s = (s * 16807) % 2147483647) / 2147483647); };
 const DECK: DeckEntry[] = ["aruvi", "kavin", "meenal", "senthil", "thamarai", "yuki", "amara", "kofi"].map((hero) => ({ hero, tier: "base" })) as DeckEntry[];
 const setHand = (g: GameState, ids: string[]) => { g.player.hand = ids.map((id, i) => ({ uid: 900 + i, id })); };
+const settle = (g: GameState) => { endPlayerTurn(g); beginReveal(g); while (revealNext(g)) {} nextTurn(g); };
 const game = (deck = DECK) => createGame({ player: deck, opponent: DECK, rng: seeded() });
 
 describe("roster", () => {
@@ -47,13 +48,14 @@ describe("battle", () => {
     expect(energyForTurn(9)).toBe(6);
   });
 
-  it("playing a hero adds its unlocked skills; take back removes them and refunds exactly", () => {
+  it("a queued hero has no skills or power; take-back refunds exactly", () => {
     const g = game([{ hero: "aruvi", tier: "ascend" }, ...DECK.slice(1)]);
     g.player.energy = 5;
     setHand(g, ["aruvi"]);
     expect(playCard(g, "player", 0, 0, 0)).toBe(true);
     expect(g.player.energy).toBe(2);
-    expect(g.player.hand.map((c) => c.id)).toEqual(["aruvi-s1", "aruvi-s2"]);
+    expect(g.player.hand).toHaveLength(0);
+    expect(effectivePower(g, 0, "player", 0)).toBe(0);
     expect(takeBack(g, 0, 0)).toBe(true);
     expect(g.player.energy).toBe(5);
     expect(g.player.hand.map((c) => c.id)).toEqual(["aruvi"]);
@@ -65,15 +67,18 @@ describe("battle", () => {
     g.player.energy = 6;
     setHand(g, ["aruvi"]);
     playCard(g, "player", 0, 0, 1);
+    settle(g);
+    g.player.energy = 6;
+    g.player.hand = g.player.hand.filter((c) => c.id === "aruvi-s1");
     const before = effectivePower(g, 0, "player", 1);
     // FLOW STATE: strongest card here +2
     expect(playCard(g, "player", 0, 0, 0)).toBe(true);
+    expect(effectivePower(g, 0, "player", 1)).toBe(before);
+    settle(g);
     expect(effectivePower(g, 0, "player", 1)).toBe(before + 2);
-    expect(g.player.hand).toHaveLength(0);
-    expect(g.player.energy).toBe(6 - 3 - 2);
+    expect(g.player.skillUsed).toContain("aruvi");
     expect(takeBack(g, 0, 1)).toBe(false);
-    expect(moveCard(g, 0, 1, 1, 0)).toBe(true);
-    expect(effectivePower(g, 1, "player", 0)).toBe(before + 2);
+    expect(moveCard(g, 0, 1, 1, 0)).toBe(false);
   });
 
   it("skills need a valid target", () => {
@@ -90,6 +95,7 @@ describe("battle", () => {
     setHand(g, ["aruvi", "kavin"]);
     playCard(g, "player", 0, 0, 0); // aruvi on carrier 0 -> adds aruvi-s1
     playCard(g, "player", 0, 1, 0); // kavin on carrier 1
+    settle(g);
     g.player.energy = 6;
     const i = g.player.hand.findIndex((c) => c.id === "aruvi-s1");
     expect(canPlay(g, "player", i, 1, 0)).toBe(false);
@@ -101,6 +107,7 @@ describe("battle", () => {
     g.player.energy = 6;
     setHand(g, ["kavin", "aruvi-ult"]); // CHRONOBREAK not needed; aruvi ultimate buffAll
     playCard(g, "player", 0, 1, 0); // kavin on carrier 1, aruvi absent
+    settle(g);
     g.player.energy = 6;
     const i = g.player.hand.findIndex((c) => c.id === "aruvi-ult");
     expect(canPlay(g, "player", i, 1, 0)).toBe(true);
@@ -130,6 +137,8 @@ describe("battle", () => {
       for (let i = 0; i < 8; i++) for (let c = 0; c < 3; c++) for (let s = 0; s < 3; s++) if (canPlay(g, "player", 0, c, s)) playCard(g, "player", 0, c, s);
       endPlayerTurn(g);
       opponentTurn(g, rng);
+      beginReveal(g);
+      while (revealNext(g)) {}
       nextTurn(g);
       expect(new Set(allUids(g)).size).toBe(allUids(g).length);
     }
@@ -154,5 +163,37 @@ describe("profile", () => {
   it("sanitizes corrupt storage and rewards wins", () => {
     expect(sanitize({ shards: -5, tiers: { aruvi: "godlike" }, deck: ["x"] })).toEqual(freshProfile());
     expect(reward(freshProfile(), "win").shards - freshProfile().shards).toBe(3);
+  });
+});
+
+describe("deferred reveal", () => {
+  it("skills arrive only at hero reveal and cannot be cast in its deployment round", () => {
+    const g = game(); setHand(g, ["aruvi"]); g.player.energy = 6;
+    playCard(g, "player", 0, 0, 0);
+    expect(g.player.hand).toEqual([]);
+    expect(carrierScore(g, 0, "player")).toBe(0);
+    endPlayerTurn(g); beginReveal(g);
+    expect(revealNext(g)?.card.id).toBe("aruvi");
+    expect(g.player.hand.map((c) => c.id)).toEqual(["aruvi-s1"]);
+    expect(canPlay(g, "player", 0, 0, 0)).toBe(false);
+    nextTurn(g); g.player.energy = 6;
+    expect(canPlay(g, "player", 0, 0, 0)).toBe(true);
+  });
+  it("reveals deployment order and follows repositioned cards", () => {
+    const g = game(); setHand(g, ["kavin", "thamarai"]); g.player.energy = 6;
+    playCard(g, "player", 0, 0, 0); playCard(g, "player", 0, 1, 0);
+    moveCard(g, 0, 0, 2, 1);
+    endPlayerTurn(g); beginReveal(g);
+    expect(revealNext(g)).toMatchObject({ card: { id: "kavin" }, carrier: 2, slot: 1 });
+    expect(revealNext(g)?.card.id).toBe("thamarai");
+    expect(revealNext(g)).toBeNull();
+    expect(g.carriers[2]?.player[1]?.revealed).toBe(true);
+  });
+  it("unrevealed hero auras never buff a revealed ally", () => {
+    const g = game(); setHand(g, ["kavin"]); g.player.energy = 6;
+    playCard(g, "player", 0, 0, 0); settle(g);
+    const before = effectivePower(g, 0, "player", 0);
+    setHand(g, ["amara"]); g.player.energy = 6; playCard(g, "player", 0, 0, 1);
+    expect(effectivePower(g, 0, "player", 0)).toBe(before);
   });
 });

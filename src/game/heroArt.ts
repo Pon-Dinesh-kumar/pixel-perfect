@@ -2,12 +2,12 @@
 import type { HeroId } from "./heroes";
 import type { Tier } from "./tiers";
 
-const files = import.meta.glob("../assets/heroes/*/*.jpg", { eager: true, import: "default" }) as Record<string, string>;
+const files = import.meta.glob("../assets/heroes/*/*.webp", { eager: true, import: "default" }) as Record<string, string>;
 const logos = import.meta.glob("../assets/logos/*.webp", { eager: true, import: "default" }) as Record<string, string>;
 
 export const HERO_ART: Record<string, Partial<Record<Tier, string>>> = {};
 for (const [path, url] of Object.entries(files)) {
-  const m = path.match(/heroes\/([^/]+)\/(base|ascend|apex)\.jpg$/);
+  const m = path.match(/heroes\/([^/]+)\/(base|ascend|apex)\.webp$/);
   if (m) (HERO_ART[m[1]!] ??= {})[m[2] as Tier] = url;
 }
 export const HERO_LOGO: Record<string, string> = {};

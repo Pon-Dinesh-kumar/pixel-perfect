@@ -103,7 +103,7 @@ function HeroPage() {
                 </div>
               );
             })}
-            <p className="text-xs text-muted-foreground">Playing {h.name} adds unlocked skill cards to your hand. Each skill is used once on a carrier. Skill art uses the hero's picture for now.</p>
+            <p className="text-xs text-muted-foreground">{h.name} reveals after End Turn. Unlocked skills arrive for the next round.</p>
           </div>
           <div className="flex gap-3">
             <button type="button" disabled={cost === null || p.shards < cost} onClick={doUpgrade}

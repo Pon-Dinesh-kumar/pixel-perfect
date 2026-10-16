@@ -7,14 +7,14 @@
  * Decks: each side brings exactly 8 unique heroes with a tier each (Base / Ascend / Apex).
  * Tier raises power (+0 / +1 / +2) and unlocks skills (1 / 2 / 3).
  *
- * Hero cards: hand -> empty own slot, spends cost. Playing a hero adds its unlocked skill cards to hand.
+ * Hero cards: hand -> empty own slot, spends cost. Heroes remain inactive until revealed after End Turn; skills arrive on reveal.
  * Skill cards: dropped on a carrier (any own slot of it), spend cost, resolve once and vanish.
  *   Skill effects are stored as a flat `mod` on the affected cards (or carrier `fortify`), so they
  *   are applied exactly once and never recomputed.
  * Take-back: a hero placed THIS turn returns to hand with an exact refund and its unused skill cards
  *   leave the hand. Blocked once any of that hero's skills has been used.
  * Move: a hero placed THIS turn may move to another empty own slot. No energy change.
- * End Turn locks player cards; then the rival plays random legal cards one by one.
+ * End Turn locks placements; rival plans; all deployments reveal sequentially.
  *
  * Power: effective = base + own passive + ally auras - enemy auras + skill mods, never below 0.
  * Passive conditions read BASE power / layout only, so there are no feedback loops.
@@ -25,6 +25,7 @@ import { HERO_BY_ID, HERO_IDS, isHeroId, type HeroId } from "./heroes";
 import { SKILL_BY_ID, skillsOf, type SkillDef } from "./skills";
 import { skillsUnlocked, type Tier } from "./tiers";
 
+export const ROUND_SECONDS = 45;
 export const MAX_TURNS = 6;
 export const MAX_ENERGY = 6;
 export const HAND_SIZE = 4;
@@ -37,12 +38,13 @@ export const TIER_POWER: Record<Tier, number> = { base: 0, ascend: 1, apex: 2 };
 export type Side = "player" | "opponent";
 /** id is a HeroId or a skill id. */
 export interface CardInst { uid: number; id: string }
-export interface Placed extends CardInst { id: HeroId; locked: boolean; power: number; cost: number; mod: number; skillUids: number[] }
+export interface Placed extends CardInst { id: HeroId; locked: boolean; power: number; cost: number; mod: number; skillUids: number[]; revealed: boolean }
 export type Slot = Placed | null;
 export interface Carrier { name: string; player: Slot[]; opponent: Slot[]; fortify: Record<Side, number> }
 export interface SideState { deck: CardInst[]; hand: CardInst[]; energy: number; tiers: Partial<Record<HeroId, Tier>>; skillUsed: HeroId[] }
-export type Phase = "player" | "opponent" | "over";
-export interface GameState { turn: number; phase: Phase; carriers: Carrier[]; player: SideState; opponent: SideState; nextUid: number }
+export type Phase = "player" | "opponent" | "reveal" | "over";
+export interface Deployment { side: Side; card: CardInst; carrier: number; slot: number; skill: boolean }
+export interface GameState { pending: Deployment[]; turn: number; phase: Phase; carriers: Carrier[]; player: SideState; opponent: SideState; nextUid: number }
 export type Rng = () => number;
 export interface DeckEntry { hero: HeroId; tier: Tier }
 
@@ -99,7 +101,7 @@ export function createGame(opts: { player?: DeckEntry[]; opponent?: DeckEntry[];
     tiers: Object.fromEntries(d.map((e) => [e.hero, e.tier])),
   });
   const g: GameState = {
-    turn: 1, phase: "player",
+    pending: [], turn: 1, phase: "player",
     carriers: CARRIERS.map((name) => ({ name, player: Array(SLOTS).fill(null), opponent: Array(SLOTS).fill(null), fortify: { player: 0, opponent: 0 } })),
     player: mk(pd), opponent: mk(od), nextUid: 0,
   };
@@ -112,7 +114,7 @@ export function createGame(opts: { player?: DeckEntry[]; opponent?: DeckEntry[];
 export const tierOf = (g: GameState, side: Side, hero: HeroId): Tier => g[side].tiers[hero] ?? "base";
 
 // ---------- passives & scoring ----------
-const list = (c: Carrier, side: Side) => c[side].filter((p): p is Placed => !!p);
+const list = (c: Carrier, side: Side) => c[side].filter((p): p is Placed => !!p && p.revealed);
 const baseSum = (c: Carrier, side: Side) => list(c, side).reduce((s, p) => s + p.power, 0);
 const isFront = (side: Side, slot: number) => (side === "player" ? slot === SLOTS - 1 : slot === 0);
 const isRear = (side: Side, slot: number) => (side === "player" ? slot === 0 : slot === SLOTS - 1);
@@ -121,7 +123,7 @@ const isRear = (side: Side, slot: number) => (side === "player" ? slot === 0 : s
 export function selfBonus(g: GameState, ci: number, side: Side, slot: number): number {
   const c = g.carriers[ci]!;
   const p = c[side][slot];
-  if (!p) return 0;
+  if (!p || !p.revealed) return 0;
   const pas = HERO_BY_ID[p.id].passive;
   const n = pas.amount;
   const mine = list(c, side).length, theirs = list(c, other(side)).length;
@@ -134,13 +136,13 @@ export function selfBonus(g: GameState, ci: number, side: Side, slot: number): n
     case "front": return isFront(side, slot) ? n : 0;
     case "lateTide": return g.turn >= 4 ? n : 0;
     case "pack": return mine === 3 ? n : 0;
-    case "overclock": return c[side].some((q, i) => q && i !== slot && q.cost >= 4) ? n : 0;
+    case "overclock": return c[side].some((q, i) => q && q.revealed && i !== slot && q.cost >= 4) ? n : 0;
     case "outnumbered": return theirs > mine ? n : 0;
     case "contested": return theirs > 0 ? n : 0;
     case "shoreline": return theirs === 0 ? n : 0;
     case "resonance": return (mine - 1) * n;
     case "lane": return ci === (pas.param ?? -1) ? n : 0;
-    case "tailwind": return !!c[side][slot - 1] || !!c[side][slot + 1] ? n : 0;
+    case "tailwind": return !!c[side][slot - 1]?.revealed || !!c[side][slot + 1]?.revealed ? n : 0;
     default: return 0;
   }
 }
@@ -148,10 +150,10 @@ export function selfBonus(g: GameState, ci: number, side: Side, slot: number): n
 /** Bonus a card gets from friendly aura passives (rally, nurture). */
 export function allyAura(c: Carrier, side: Side, slot: number): number {
   const p = c[side][slot];
-  if (!p) return 0;
+  if (!p || !p.revealed) return 0;
   let b = 0;
   c[side].forEach((q, i) => {
-    if (!q || i === slot) return;
+    if (!q || !q.revealed || i === slot) return;
     const pas = HERO_BY_ID[q.id].passive;
     if (pas.kind === "rally") b += pas.amount;
     if (pas.kind === "nurture" && p.cost <= 2) b += pas.amount;
@@ -162,16 +164,16 @@ export function allyAura(c: Carrier, side: Side, slot: number): number {
 /** Index of the strongest (base power) card on a side; ties -> lowest slot. */
 function strongestBase(c: Carrier, side: Side): number {
   let best = -1;
-  c[side].forEach((q, i) => { if (q && (best < 0 || q.power > c[side][best]!.power)) best = i; });
+  c[side].forEach((q, i) => { if (q?.revealed && (best < 0 || q.power > c[side][best]!.power)) best = i; });
   return best;
 }
 
 /** Penalty a card takes from enemy aura passives (disruptor, crusher, mirage). */
 export function debuff(c: Carrier, side: Side, slot: number): number {
   const p = c[side][slot];
-  if (!p) return 0;
+  if (!p || !p.revealed) return 0;
   let d = 0;
-  for (const q of c[other(side)]) {
+  for (const q of list(c, other(side))) {
     if (!q) continue;
     const pas = HERO_BY_ID[q.id].passive;
     if (pas.kind === "disruptor") d += pas.amount;
@@ -184,7 +186,7 @@ export function debuff(c: Carrier, side: Side, slot: number): number {
 export function effectivePower(g: GameState, ci: number, side: Side, slot: number): number {
   const c = g.carriers[ci]!;
   const p = c[side][slot];
-  if (!p) return 0;
+  if (!p || !p.revealed) return 0;
   return Math.max(0, p.power + selfBonus(g, ci, side, slot) + allyAura(c, side, slot) - debuff(c, side, slot) + p.mod);
 }
 
@@ -246,22 +248,18 @@ function resolveSkill(g: GameState, side: Side, sk: SkillDef, ci: number) {
 export function playCard(g: GameState, side: Side, handIndex: number, carrier: number, slot: number): boolean {
   if (!canPlay(g, side, handIndex, carrier, slot)) return false;
   const s = g[side];
-  const [card] = s.hand.splice(handIndex, 1);
-  s.energy -= cardCost(card!.id);
-  if (isSkill(card!.id)) {
-    const sk = SKILL_BY_ID[card!.id]!;
-    resolveSkill(g, side, sk, carrier);
-    if (!s.skillUsed.includes(sk.hero)) s.skillUsed.push(sk.hero);
-    return true;
+  const card = s.hand[handIndex];
+  if (!card) return false;
+  s.hand.splice(handIndex, 1);
+  s.energy -= cardCost(card.id);
+  const skill = isSkill(card.id);
+  g.pending.push({ side, card, carrier, slot, skill });
+  if (!skill && isHeroId(card.id)) {
+    g.carriers[carrier]?.[side].splice(slot, 1, {
+      uid: card.uid, id: card.id, locked: false, revealed: false,
+      power: heroPower(card.id, tierOf(g, side, card.id)), cost: cardCost(card.id), mod: 0, skillUids: [],
+    });
   }
-  const hero = card!.id as HeroId;
-  const tier = tierOf(g, side, hero);
-  const skills = unlockedSkills(hero, tier).map((k) => ({ uid: g.nextUid++, id: k.id }));
-  s.hand.push(...skills);
-  g.carriers[carrier]![side][slot] = {
-    uid: card!.uid, id: hero, locked: side === "opponent", power: heroPower(hero, tier), cost: HERO_BY_ID[hero].cost, mod: 0,
-    skillUids: skills.map((k) => k.uid),
-  };
   return true;
 }
 
@@ -283,6 +281,7 @@ export function takeBack(g: GameState, carrier: number, slot: number): boolean {
   const p = g.carriers[carrier]!.player[slot]!;
   g.carriers[carrier]!.player[slot] = null;
   g.player.hand = g.player.hand.filter((c) => !p.skillUids.includes(c.uid));
+  g.pending = g.pending.filter((d) => d.card.uid !== p.uid);
   g.player.hand.push({ uid: p.uid, id: p.id });
   g.player.energy += p.cost;
   return true;
@@ -294,6 +293,8 @@ export function moveCard(g: GameState, fromC: number, fromS: number, toC: number
   if (g.carriers[toC]!.player[toS] !== null) return false;
   g.carriers[toC]!.player[toS] = g.carriers[fromC]!.player[fromS]!;
   g.carriers[fromC]!.player[fromS] = null;
+  const deployment = g.pending.find((d) => d.card.uid === g.carriers[toC]?.player[toS]?.uid);
+  if (deployment) { deployment.carrier = toC; deployment.slot = toS; }
   return true;
 }
 
@@ -330,8 +331,36 @@ export function opponentTurn(g: GameState, rng: Rng = Math.random): OpponentMove
   return moves;
 }
 
+/** Reveal exactly one queued deployment; callers animate its returned event before advancing. */
+export function beginReveal(g: GameState): boolean {
+  if (g.phase !== "opponent") return false;
+  g.phase = "reveal";
+  return true;
+}
+export function revealNext(g: GameState): Deployment | null {
+  if (g.phase !== "reveal") return null;
+  const d = g.pending.shift();
+  if (!d) return null;
+  const s = g[d.side];
+  if (d.skill) {
+    const sk = SKILL_BY_ID[d.card.id];
+    if (sk && skillBlock(g, d.side, sk.id, d.carrier) === null) resolveSkill(g, d.side, sk, d.carrier);
+    if (sk && !s.skillUsed.includes(sk.hero)) s.skillUsed.push(sk.hero);
+  } else {
+    const p = g.carriers[d.carrier]?.[d.side][d.slot];
+    if (p && p.uid === d.card.uid && !p.revealed) {
+      p.revealed = true; p.locked = true;
+      const skills = unlockedSkills(p.id, tierOf(g, d.side, p.id)).map((sk) => ({ uid: g.nextUid++, id: sk.id }));
+      p.skillUids = skills.map((sk) => sk.uid);
+      s.hand.push(...skills);
+    }
+  }
+  return d;
+}
+
 /** After the rival acts: next turn (or match over). */
 export function nextTurn(g: GameState) {
+  if (g.phase !== "reveal" || g.pending.length) return;
   if (g.turn >= MAX_TURNS) { g.phase = "over"; return; }
   g.turn += 1;
   g.phase = "player";
@@ -355,5 +384,6 @@ export function allUids(g: GameState): number[] {
   const out: number[] = [];
   for (const s of [g.player, g.opponent]) out.push(...s.deck.map((c) => c.uid), ...s.hand.map((c) => c.uid));
   for (const c of g.carriers) for (const side of ["player", "opponent"] as Side[]) for (const p of c[side]) if (p) out.push(p.uid);
+  out.push(...g.pending.filter((d) => d.skill).map((d) => d.card.uid));
   return out;
 }

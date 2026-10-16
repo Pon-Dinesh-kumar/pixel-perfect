@@ -1,17 +1,20 @@
 import * as Phaser from "phaser";
+import { BattleAudio } from "./audio";
+import { HERO_EFFECTS } from "./heroEffects";
+import { artKey, logoKey } from "./heroArt";
 import { createCard, createDetail, FONT, viewOf, type CardView } from "./cardView";
 import type { HeroId } from "./heroes";
 import { SKILL_BY_ID } from "./skills";
 import { handLayout, nearestIndex, type HandPos } from "./handLayout";
 import { HERO_BY_ID, isHeroId } from "./heroes";
 import {
-  canMove, canTakeBack, cardCost, energyForTurn, carrierScore, createGame, effectivePower, endPlayerTurn, isSkill, MAX_ENERGY, MAX_TURNS, moveCard,
+  beginReveal, revealNext, ROUND_SECONDS, opponentTurn, canMove, canTakeBack, cardCost, energyForTurn, carrierScore, createGame, effectivePower, endPlayerTurn, isSkill, MAX_ENERGY, MAX_TURNS, moveCard,
   nextTurn, opponentPlayOne, playCard, result, skillBlock, SLOTS, takeBack, tierOf, type DeckEntry, type GameState, type Outcome, type Side,
 } from "./rules";
 
 export interface Assets {
   sky: string; carrier: string; art: Record<string, string>; deck: DeckEntry[];
-  onResult?: (o: Outcome) => void; onExit?: () => void;
+  onLoad?: (progress: number) => void; onReady?: () => void; onError?: () => void; onResult?: (o: Outcome) => void; onExit?: () => void;
 }
 
 export const W = 720;
@@ -59,16 +62,26 @@ export class BattleScene extends Phaser.Scene {
   tf = (side: Side) => (h: HeroId) => tierOf(this.g, side, h);
   drag: { src: DragSrc; obj: Phaser.GameObjects.Container; ox: number; oy: number; hover: DropTarget } | null = null;
 
+  remaining = ROUND_SECONDS;
+  timerText!: Phaser.GameObjects.Text;
+  audio = new BattleAudio();
   constructor(private assets: Assets) { super("battle"); }
 
   preload() {
+    this.g = createGame({ player: this.assets.deck });
+    this.load.on("progress", (n: number) => this.assets.onLoad?.(n));
+    this.load.on("loaderror", () => this.assets.onError?.());
     this.load.image("sky", this.assets.sky);
     this.load.image("carrier", this.assets.carrier);
-    for (const [key, url] of Object.entries(this.assets.art)) this.load.image(key, url);
+    const keys = new Set(["badge-cost", "badge-power"]);
+    for (const side of ["player", "opponent"] as Side[]) for (const id of Object.keys(this.g[side].tiers)) {
+      if (isHeroId(id)) { keys.add(artKey(id, tierOf(this.g, side, id))); keys.add(logoKey(id)); }
+    }
+    for (const key of keys) { const url = this.assets.art[key]; if (url && !this.textures.exists(key)) this.load.image(key, url); }
   }
 
   create() {
-    this.g = createGame({ player: this.assets.deck });
+    this.audio = new BattleAudio();
     this.resultSent = false;
     this.carriers = []; this.cardLayers = []; this.slotFx = []; this.scoreText = []; this.laneGlow = []; this.handCards = [];
     this.animFrom.clear(); this.lastPower.clear(); this.lastScores = []; this.drag = null;
@@ -80,7 +93,17 @@ export class BattleScene extends Phaser.Scene {
     this.drawBottomHud();
     this.handLayer = this.add.container(0, 0).setDepth(50);
     this.setupDrag();
+    this.remaining = ROUND_SECONDS;
+    this.time.addEvent({ delay: 1000, loop: true, callback: () => {
+      if (this.g.phase !== "player") return;
+      this.remaining = Math.max(0, this.remaining - 1);
+      this.timerText.setText(`${this.remaining}s`).setColor(this.remaining <= 10 ? "#ff5a64" : "#dfe7ff");
+      if (this.remaining <= 5) this.audio.play("tick");
+      if (this.remaining === 0) { if (this.drag) this.finishDrag(null); this.endTurn(); }
+    } });
+    this.events.once("shutdown", () => { this.audio.destroy(); this.detail?.close(); this.input.removeAllListeners(); this.load.removeAllListeners(); });
     this.refresh();
+    this.assets.onReady?.();
   }
 
   // ---------- environment ----------
@@ -210,6 +233,9 @@ export class BattleScene extends Phaser.Scene {
     };
     this.add.text(W / 2, 14, "TURN", { fontFamily: FONT, fontSize: "18px", color: "#ffc23a", fontStyle: "600" }).setOrigin(0.5, 0).setDepth(41);
     this.turnText = this.add.text(W / 2, 46, "", { fontFamily: FONT, fontSize: "40px", color: "#ffffff", fontStyle: "700" }).setOrigin(0.5).setDepth(41);
+    this.timerText = this.add.text(W - 30, 118, `${ROUND_SECONDS}s`, { fontFamily: FONT, fontSize: "24px", color: "#dfe7ff" }).setOrigin(1, 0.5).setDepth(41);
+    const sound = this.add.text(28, 118, "♫ OFF", { fontFamily: FONT, fontSize: "24px", color: "#dfe7ff" }).setOrigin(0, 0.5).setDepth(41).setInteractive({ useHandCursor: true });
+    sound.on("pointerup", async () => { sound.setText(await this.audio.toggle() ? "♫ ON" : "♫ OFF"); });
     this.statusText = this.add.text(W / 2, 118, "", { fontFamily: FONT, fontSize: "20px", color: "#dfe7ff", backgroundColor: "#0a1020cc", padding: { x: 12, y: 2 } }).setOrigin(0.5).setDepth(41);
   }
 
@@ -246,7 +272,7 @@ export class BattleScene extends Phaser.Scene {
   refresh() {
     const g = this.g;
     this.turnText.setText(`${g.turn}/${MAX_TURNS}`);
-    this.statusText.setText(g.phase === "opponent" ? "RIVAL IS PLAYING…" : g.phase === "over" ? "MATCH OVER" : "YOUR TURN · TAP = INFO · DRAG = PLAY");
+    this.statusText.setText(g.phase === "reveal" ? "REVEALING…" : g.phase === "opponent" ? "RIVAL PLANNING…" : g.phase === "over" ? "MATCH OVER" : "DEPLOYMENT");
     let pt = 0, ot = 0;
     g.carriers.forEach((_c, i) => {
       const p = carrierScore(g, i, "player"), o = carrierScore(g, i, "opponent");
@@ -290,11 +316,11 @@ export class BattleScene extends Phaser.Scene {
           const p = c[side][s];
           if (!p) continue;
           const power = effectivePower(this.g, i, side, s);
-          const card = createCard(this, viewOf(p.id, this.tf(side)), SLOT_W - 4, SLOT_H - 4, { enemy: side === "opponent", power });
+          const card = createCard(this, viewOf(p.id, this.tf(side)), SLOT_W - 4, SLOT_H - 4, { enemy: side === "opponent", power, concealed: !p.revealed });
           const x = SLOT_X[side][s]!, y = SLOT_Y;
           card.setPosition(x, y);
           layer.add(card);
-          this.tappable(card, viewOf(p.id, this.tf(side)), { enemy: side === "opponent", power, note: p.mod ? `Skill effects: ${p.mod > 0 ? "+" : ""}${p.mod}` : undefined });
+          if (p.revealed || side === "player") this.tappable(card, viewOf(p.id, this.tf(side)), { enemy: side === "opponent", power, note: p.mod ? `Skill effects: ${p.mod > 0 ? "+" : ""}${p.mod}` : undefined });
           if (side === "player" && canMove(this.g, i, s)) {
             const ring = this.add.graphics();
             ring.lineStyle(2, 0xbff0ff, 0.9).strokeRoundedRect(-SLOT_W / 2, -SLOT_H / 2, SLOT_W, SLOT_H, 7);
@@ -317,6 +343,12 @@ export class BattleScene extends Phaser.Scene {
           this.lastPower.set(p.uid, power);
         }
       }
+      const queued = this.g.pending.filter((d) => d.skill && d.carrier === i);
+      queued.forEach((d, k) => {
+        const v = viewOf(d.card.id, this.tf(d.side));
+        const card = createCard(this, v, 46, 62, { concealed: true });
+        card.setPosition(210 + k * 52, 80); layer.add(card);
+      });
     });
   }
 
@@ -491,7 +523,7 @@ export class BattleScene extends Phaser.Scene {
           const block = skillBlock(g, "player", id, t.c);
           if (cardCost(id) > g.player.energy) msg = "NOT ENOUGH ENERGY";
           else if (block) msg = block;
-          else if (playCard(g, "player", idx, t.c, t.s)) { this.skillFx(t.c, SKILL_BY_ID[id]!.name, CYAN); this.refresh(); return; }
+          else if (playCard(g, "player", idx, t.c, t.s)) { this.refresh(); return; }
         }
         this.animFrom.set(d.src.uid, pos);
       } else if (t?.kind === "slot" && t.side === "player") {
@@ -543,8 +575,18 @@ export class BattleScene extends Phaser.Scene {
     this.tweens.add({ targets: glow, alpha: 0, duration: 600, delay: 150, onComplete: () => glow.destroy() });
   }
 
-  skillFx(ci: number, name: string, color: number) {
+  skillFx(ci: number, name: string, color: number, id?: string) {
     const cont = this.carriers[ci]!;
+    const sk = id ? SKILL_BY_ID[id] : undefined;
+    if (sk) {
+      const fx = HERO_EFFECTS[sk.hero];
+      for (let k = 0; k < 14; k++) {
+        const a = k / 14 * Math.PI * 2;
+        const p = this.add.rectangle(360, SLOT_Y, sk.anim === "slash" ? 4 : 8, sk.anim === "shards" ? 24 : 8, color).setRotation(a);
+        cont.add(p);
+        this.tweens.add({ targets: p, x: 360 + Math.cos(a) * 220, y: SLOT_Y + Math.sin(a) * 70, angle: fx.drift * 3, alpha: 0, duration: 450 + k * 12, onComplete: () => p.destroy() });
+      }
+    }
     const ring = this.add.circle(360, SLOT_Y, 40, color, 0.15).setStrokeStyle(5, color, 1);
     cont.add(ring);
     this.tweens.add({ targets: ring, scale: 6, alpha: 0, duration: 520, onComplete: () => ring.destroy() });
@@ -571,27 +613,47 @@ export class BattleScene extends Phaser.Scene {
   // ---------- turn flow ----------
   endTurn() {
     if (this.drag || !endPlayerTurn(this.g)) return;
+    this.detail?.close();
+    opponentTurn(this.g);
+    beginReveal(this.g);
     this.refresh();
     const step = () => {
-      const m = opponentPlayOne(this.g);
-      if (m) {
-        if (m.skill) this.skillFx(m.carrier, SKILL_BY_ID[m.card.id]!.name, CORAL);
-        else this.animFrom.set(m.card.uid, { x: W - 52, y: 46, impact: true });
-        this.refresh();
-        this.time.delayedCall(450, step);
-      } else {
-        this.time.delayedCall(350, () => {
-          nextTurn(this.g);
-          this.refresh();
-          if (this.g.phase === "over") this.showResult();
-        });
+      const d = this.g.pending[0];
+      if (!d) {
+        nextTurn(this.g); this.remaining = ROUND_SECONDS;
+        this.timerText.setText(`${this.remaining}s`);
+        this.refresh(); if (this.g.phase === "over") this.showResult();
+        return;
       }
+      const v = viewOf(d.card.id, this.tf(d.side));
+      const x = d.skill ? 360 : SLOT_X[d.side][d.slot] ?? 360;
+      const y = (this.carriers[d.carrier]?.y ?? 0) + SLOT_Y;
+      const flip = createCard(this, v, SLOT_W, SLOT_H, { concealed: true }).setPosition(x, y).setDepth(90);
+      this.tweens.add({ targets: flip, scaleX: 0, scaleY: 1.18, duration: 180, onComplete: () => {
+        flip.destroy();
+        const handBefore = new Set(this.g.player.hand.map((c) => c.uid));
+        revealNext(this.g);
+        for (const c of this.g.player.hand) if (!handBefore.has(c.uid)) this.animFrom.set(c.uid, { x, y });
+        this.refresh();
+        const face = createCard(this, v, SLOT_W, SLOT_H, { enemy: d.side === "opponent" }).setPosition(x, y).setScale(0, 1.18).setDepth(90);
+        this.audio.play(d.skill ? "cast" : "reveal", v.hero);
+        if (!d.skill && d.side === "player") this.audio.play("draw", v.hero);
+        this.tweens.add({ targets: face, scaleX: 1.1, scaleY: 1.1, duration: 200, onComplete: () => {
+          if (d.skill) {
+            this.skillFx(d.carrier, v.name, v.color, d.card.id);
+            this.audio.play("destroy", v.hero);
+            this.tweens.add({ targets: face, alpha: 0, scale: 0.2, angle: 25, duration: 280, onComplete: () => face.destroy() });
+          } else { this.impact(d.carrier, x, SLOT_Y, v.color); face.destroy(); }
+        } });
+        this.time.delayedCall(620, step);
+      } });
     };
-    this.time.delayedCall(350, step);
+    this.time.delayedCall(200, step);
   }
 
   showResult() {
     const r = result(this.g);
+    this.audio.play("result");
     if (!this.resultSent) { this.resultSent = true; this.assets.onResult?.(r.outcome); }
     const o = this.add.container(W / 2, 560).setDepth(100);
     const bg = this.add.graphics();

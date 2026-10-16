@@ -11,7 +11,7 @@ One style for every hero, tier and skill: **tactical hero-shooter agent splash a
 6. Background: flat dark navy (#0a0f1c family) with a few faint geometric shapes in the accent colour. No scenery, no other people.
 7. Palette: the hero's 2–3 listed colours plus neutral navy/black/white. No rainbow.
 8. Never: text, logos, watermarks, borders, UI, frames, real game characters, blur/bokeh, photo grain.
-9. Size: 768×1024 portrait for heroes; skills reuse the hero's own art with an effect overlay.
+9. Size: 768×1024 portrait for heroes; skills use weapon/ability emblems, never character pictures. Keep procedural placeholders until skill art is requested.
 
 ## Tiers (same person, same face, same pose family)
 - **Base**: standard outfit, small glow on the power focus.
