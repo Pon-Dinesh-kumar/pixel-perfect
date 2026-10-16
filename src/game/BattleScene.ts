@@ -282,6 +282,10 @@ export class BattleScene extends Phaser.Scene {
       const p = carrierScore(g, i, "player"), o = carrierScore(g, i, "opponent");
       pt += p; ot += o;
       const st = this.scoreText[i]!;
+      const oldP = this.lastScores[i * 2], oldO = this.lastScores[i * 2 + 1];
+      if (oldP !== undefined && oldO !== undefined && Math.sign(oldP - oldO) !== Math.sign(p - o) && p !== o) {
+        this.floatText(p > o ? "CARRIER LEAD" : "RIVAL LEAD", 360, (this.carriers[i]?.y ?? 0) + 92, p > o ? "#7fd8ff" : "#ff8892");
+      }
       if (this.lastScores[i * 2] !== undefined && this.lastScores[i * 2] !== p) this.pulse(st.p);
       if (this.lastScores[i * 2 + 1] !== undefined && this.lastScores[i * 2 + 1] !== o) this.pulse(st.o);
       this.lastScores[i * 2] = p; this.lastScores[i * 2 + 1] = o;
@@ -343,7 +347,10 @@ export class BattleScene extends Phaser.Scene {
             });
           }
           const prev = this.lastPower.get(p.uid);
-          if (prev !== undefined && prev !== power) this.passiveFx(card, power > prev);
+          if (prev !== undefined && prev !== power) {
+            this.passiveFx(card, power > prev);
+            this.floatText(`${power > prev ? "+" : ""}${power - prev}`, x, (this.carriers[i]?.y ?? 0) + y - 30, power > prev ? "#a0ffcb" : "#ff8892");
+          }
           this.lastPower.set(p.uid, power);
         }
       }
@@ -517,11 +524,13 @@ export class BattleScene extends Phaser.Scene {
   }
 
   finishDrag(t: DropTarget) {
-    const d = this.drag!;
+    const d = this.drag;
+    if (!d) return;
     this.drag = null;
     const pos = { x: d.obj.x, y: d.obj.y };
     d.obj.destroy();
     const g = this.g;
+    const energyBefore = g.player.energy;
     let msg: string | null = null;
 
     if (d.src.kind === "hand") {
@@ -535,6 +544,7 @@ export class BattleScene extends Phaser.Scene {
            else if (playCard(g, "player", idx, t.c, t.s)) {
              this.impact(t.c, 360, 80, HERO_BY_ID[SKILL_BY_ID[id]?.hero ?? "aruvi"].color);
              this.floatText("SKILL QUEUED", 360, this.carriers[t.c]?.y ?? 0, "#7fd8ff");
+             this.floatText(`-${energyBefore - g.player.energy} ENERGY`, 64, 1090, "#7fd8ff");
              this.refresh(); return;
            }
         }
@@ -562,6 +572,7 @@ export class BattleScene extends Phaser.Scene {
       }
     }
     if (msg) this.flash(msg);
+    if (g.player.energy < energyBefore) this.floatText(`-${energyBefore - g.player.energy} ENERGY`, 64, 1090, "#7fd8ff");
     this.refresh();
   }
 
@@ -653,6 +664,7 @@ export class BattleScene extends Phaser.Scene {
       this.tweens.add({ targets: flip, scaleX: 0, scaleY: 1.3, delay: 240, duration: 400, ease: "Sine.in", onComplete: () => {
         flip.destroy();
         const handBefore = new Set(this.g.player.hand.map((c) => c.uid));
+        const scoresBefore = this.g.carriers.map((_c, ci) => ({ player: carrierScore(this.g, ci, "player"), opponent: carrierScore(this.g, ci, "opponent") }));
         revealNext(this.g);
         for (const c of this.g.player.hand) if (!handBefore.has(c.uid)) this.animFrom.set(c.uid, { x, y });
         this.refresh();
@@ -662,6 +674,17 @@ export class BattleScene extends Phaser.Scene {
         this.tweens.add({ targets: face, scaleX: 1.3, scaleY: 1.3, duration: 440, ease: "Sine.out", onComplete: () => {
           if (d.skill) {
             this.skillFx(d.carrier, v.name, v.color, d.card.id);
+            for (const side of ["player", "opponent"] as Side[]) {
+              const oldScore = scoresBefore[d.carrier]?.[side] ?? 0;
+              const delta = carrierScore(this.g, d.carrier, side) - oldScore;
+              if (delta) {
+                const tx = side === "player" ? 165 : 555;
+                const tether = this.add.graphics().setDepth(92);
+                tether.lineStyle(4, v.color, 0.9).lineBetween(x, y, tx, y);
+                this.tweens.add({ targets: tether, alpha: 0, duration: 1100, onComplete: () => tether.destroy() });
+                this.floatText(`${delta > 0 ? "+" : ""}${delta} POWER`, tx, y - 65, delta > 0 ? "#a0ffcb" : "#ff8892");
+              }
+            }
             this.audio.play("destroy", v.hero);
             this.tweens.add({ targets: face, alpha: 0, scale: 0.2, angle: 25, delay: 450, duration: 650, onComplete: () => face.destroy() });
           } else {

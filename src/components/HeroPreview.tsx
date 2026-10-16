@@ -10,12 +10,12 @@ export function HeroPreview({ id, tier }: { id: HeroId; tier: Tier }) {
   const [dragging, setDragging] = useState(false);
   const start = useRef<{ x: number; angle: number } | null>(null);
   return <>
-    <div className="touch-pan-y" onPointerDown={(e) => {
+    <div className="touch-pan-y" onPointerDownCapture={(e) => {
       start.current = { x: e.clientX, angle: rotation };
       e.currentTarget.setPointerCapture(e.pointerId); setDragging(true);
-    }} onPointerMove={(e) => {
+    }} onPointerMoveCapture={(e) => {
       if (start.current) setRotation(start.current.angle + (e.clientX - start.current.x) * 1.25);
-    }} onPointerUp={() => { start.current = null; setDragging(false); }} onPointerCancel={() => { start.current = null; setDragging(false); }}>
+    }} onPointerUpCapture={() => { start.current = null; setDragging(false); }} onPointerCancel={() => { start.current = null; setDragging(false); }}>
       <HeroCard id={id} tier={tier} tilt rotation={rotation} rotating={dragging} />
     </div>
     <div className="mt-5 flex justify-center gap-3">
