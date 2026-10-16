@@ -14,3 +14,4 @@
 - Hero roster (heroes.ts), skills (skills.ts) and tiers (tiers.ts) are the single data source; battle cards are hero ids or skill ids resolved via rules.ts helpers — no parallel card tables.
 - Player progress (shards, tiers, deck) lives in src/game/profile.ts: pure helpers + localStorage store read via useSyncExternalStore (null on server) — keeps SSR safe and logic testable.
 - Skill effects are committed once as flat `mod`/`fortify` values at cast time; passives stay recomputed from base power — skills never re-trigger or double-count.
+- Battle cards never show ability text (and hand cards never show power); full info lives only in createDetail() opened on tap — keeps the drag-only placement rule clean.
