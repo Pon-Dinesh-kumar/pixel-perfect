@@ -21,3 +21,4 @@
 - Deployments are queued in rules.ts and revealed one at a time; unrevealed cards are excluded from every scoring/passive path — animation timing cannot change results.
 - Battle preloads only the selected tier art and logos for both match decks; collection art remains independently available — preserves quality while reducing startup traffic.
 - heroEffects.ts supplies distinct hero motifs to CSS and Phaser; audio.ts synthesizes opt-in music/SFX client-side — shared identity with no audio downloads.
+- Destroy card tweens recursively before Phaser destroys container children — repeated state renders must not retain infinite animations.

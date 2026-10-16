@@ -11,13 +11,15 @@ const GOLD = 0xffc23a;
 
 /** Phaser does not remove repeating child tweens when a card is rebuilt. */
 function cleanCardTweens(scene: Phaser.Scene, container: Phaser.GameObjects.Container) {
-  container.once("destroy", () => {
+  const destroy = container.destroy.bind(container);
+  container.destroy = (fromScene?: boolean) => {
     const clean = (object: Phaser.GameObjects.GameObject) => {
       scene.tweens.killTweensOf(object);
       if (object instanceof Phaser.GameObjects.Container) object.list.forEach(clean);
     };
     clean(container);
-  });
+    destroy(fromScene);
+  };
 }
 
 export interface CardView {
