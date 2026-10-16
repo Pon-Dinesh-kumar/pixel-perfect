@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { HERO_BY_ID, type HeroId } from "@/game/heroes";
-import { heroArt, heroLogo } from "@/game/heroArt";
+import { heroArt, heroForeground, heroLogo } from "@/game/heroArt";
 import costBadge from "@/assets/ui/cost.webp";
 import powerBadge from "@/assets/ui/power.webp";
 import { HERO_EFFECTS } from "@/game/heroEffects";
@@ -11,7 +11,7 @@ const hex = (n: number) => `#${n.toString(16).padStart(6, "0")}`;
 
 /**
  * Snap-style hero card. Ascend and Apex share the animated border and frame-break art
- * (head and shoulders step out above the frame with a soft edge). Apex adds hero particles
+ * (transparent character steps slightly beyond the top/sides, never the bottom). Apex adds hero particles
  * and a hero-coloured backdrop glow. `tilt` enables gyroscope (or pointer) 3D tilt.
  */
 export function HeroCard({ id, tier, tilt = false, showStats = true, className = "" }: { id: HeroId; tier: Tier; tilt?: boolean; showStats?: boolean; className?: string }) {
@@ -45,7 +45,6 @@ export function HeroCard({ id, tier, tilt = false, showStats = true, className =
   };
 
   const upgraded = tier !== "base";
-  const breakOut = upgraded ? 3 : 0; // % of card height
   const style = { "--hero": hex(h.color), transform: `perspective(900px) rotateX(${rot.x}deg) rotateY(${rot.y}deg)` } as CSSProperties;
   const fx = HERO_EFFECTS[id];
 
@@ -60,11 +59,12 @@ export function HeroCard({ id, tier, tilt = false, showStats = true, className =
         <img src={heroArt(id, tier)} alt={h.name} className="h-full w-full object-cover object-top" style={{ transform: `translate(${rot.y * -0.6}px, ${rot.x * 0.6}px) scale(1.06)` }} />
         <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-background to-transparent" />
       </div>
-      {upgraded && (
-        <img src={heroArt(id, tier)} alt="" aria-hidden
-          className="pointer-events-none absolute object-cover object-top rounded-[8px]"
-          style={{ left: "-1%", width: "102%", top: `-${breakOut}%`, height: "103%",
-            transform: `translate(${rot.y * -0.6}px, ${rot.x * 0.6}px) translateZ(16px)` }} />
+      {upgraded && heroForeground(id, tier) && (
+        <div className="hero-frame-break pointer-events-none absolute inset-x-0 bottom-[3px] top-0">
+          <img src={heroForeground(id, tier)} alt="" aria-hidden
+            className="absolute -left-[3%] -top-[3%] h-[103%] w-[106%] max-w-none object-fill"
+            style={{ transform: "translateZ(16px)" }} />
+        </div>
       )}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-background to-transparent" />
       {tier === "apex" && (
@@ -74,11 +74,11 @@ export function HeroCard({ id, tier, tilt = false, showStats = true, className =
           ))}
         </div>
       )}
-      <img src={heroLogo(id)} alt={h.name} className={`absolute bottom-[2%] max-h-[24%] object-contain drop-shadow-lg ${showStats ? "left-[2%] w-[78%]" : "inset-x-[4%] mx-auto w-[92%]"}`} style={{ transform: "translateZ(40px)" }} />
+      <img src={heroLogo(id)} alt={h.name} className="absolute bottom-[9%] left-1/2 max-h-[22%] w-[86%] -translate-x-1/2 object-contain drop-shadow-lg" />
       {showStats && (
         <>
-          <span className="badge-cost absolute -left-[3%] -top-[3%] flex h-[27%] w-[34%] items-center justify-center font-display text-[17cqw] font-bold leading-none text-foreground" style={{ transform: "translateZ(40px)" }}><img aria-hidden src={costBadge} className="absolute inset-0 h-full w-full object-contain" /><span className="relative">{h.cost}</span></span>
-          <span className="badge-power absolute -bottom-[3%] -right-[3%] flex h-[27%] w-[34%] items-center justify-center font-display text-[17cqw] font-bold leading-none text-primary-foreground" style={{ transform: "translateZ(40px)" }}><img aria-hidden src={powerBadge} className="absolute inset-0 h-full w-full object-contain" /><span className="relative">{heroPower(id, tier)}</span></span>
+          <span className="badge-cost absolute -left-[3%] -top-[2%] flex h-[20%] w-[27%] items-center justify-center font-display text-[15cqw] font-bold leading-none text-foreground" style={{ transform: "translateZ(40px)" }}><img aria-hidden src={costBadge} className="absolute inset-0 h-full w-full object-contain" /><span className="relative">{h.cost}</span></span>
+          <span className="badge-power absolute -bottom-[2%] -right-[3%] flex h-[20%] w-[27%] items-center justify-center font-display text-[15cqw] font-bold leading-none text-foreground" style={{ transform: "translateZ(40px)" }}><img aria-hidden src={powerBadge} className="absolute inset-0 h-full w-full object-contain" /><span className="relative">{heroPower(id, tier)}</span></span>
         </>
       )}
       {needPerm && <span className="absolute inset-x-0 -bottom-7 text-center text-xs text-muted-foreground">Tap card to enable tilt</span>}

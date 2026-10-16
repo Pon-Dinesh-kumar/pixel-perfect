@@ -175,7 +175,8 @@
   .rotate-lock { display: flex; }
 }
 .badge-cost { text-shadow: 0 1px 2px var(--background); }
-.badge-power { text-shadow: 0 1px 1px var(--primary); }
+.badge-power { text-shadow: 0 1px 2px var(--background); }
+.hero-frame-break { clip-path: inset(-8% -8% 0 -8%); }
 .apex-aura {
   background: radial-gradient(circle, color-mix(in oklab, var(--hero) 55%, transparent), transparent 65%);
   filter: blur(8px);

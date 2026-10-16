@@ -22,3 +22,4 @@
 - Battle preloads only the selected tier art and logos for both match decks; collection art remains independently available — preserves quality while reducing startup traffic.
 - heroEffects.ts supplies distinct hero motifs to CSS and Phaser; audio.ts synthesizes opt-in music/SFX client-side — shared identity with no audio downloads.
 - Destroy card tweens recursively before Phaser destroys container children — repeated state renders must not retain infinite animations.
+- Frame-break layers use separate transparent foreground assets, while original artwork remains clipped inside the card; battle preloads only matching upgraded foregrounds — preserves art and avoids opaque overflow or unnecessary downloads.
