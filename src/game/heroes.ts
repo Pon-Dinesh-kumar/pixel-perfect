@@ -39,7 +39,7 @@ export interface Passive {
   targets: "self" | "allies" | "enemies";
   timing: "continuous";
   amount: number;
-  param?: number;
+  param?: number | undefined;
 }
 
 export interface Look {
