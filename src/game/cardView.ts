@@ -135,7 +135,10 @@ export function createCard(scene: Phaser.Scene, v: CardView, w: number, h: numbe
     c.setSize(w, h); return c;
   }
   if (v.skill) skillArt(scene, c, v, w, h);
-  else addArt(scene, c, v, -w / 2 + b, -h / 2 + b, w - b * 2, h - b * 2);
+  else {
+    const spill = v.tier === "base" ? 0 : h * 0.025;
+    addArt(scene, c, v, -w / 2 + b - spill * 0.2, -h / 2 + b - spill, w - b * 2 + spill * 0.4, h - b * 2 + spill, 0);
+  }
 
   const ov = scene.add.graphics();
   ov.fillGradientStyle(0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0, 0, 0.95, 0.95).fillRect(-w / 2 + b, h * 0.05, w - b * 2, h / 2 - h * 0.05 - b);
