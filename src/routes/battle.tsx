@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import costBadge from "@/assets/ui/cost.webp";
 import powerBadge from "@/assets/ui/power.webp";
+import cardBack from "@/assets/ui/card-back.jpg";
 import sky from "@/assets/scene-sky.jpg";
 import carrier from "@/assets/carrier-stylized.png";
 import { HERO_ART, HERO_FOREGROUND, HERO_LOGO, artKey, foregroundKey, logoKey } from "@/game/heroArt";
@@ -10,7 +11,7 @@ import { deckEntries, isValidDeck, loadProfile, reward, saveProfile } from "@/ga
 import { isHeroId } from "@/game/heroes";
 import type { Tier } from "@/game/tiers";
 
-const ART: Record<string, string> = { "badge-cost": costBadge, "badge-power": powerBadge };
+const ART: Record<string, string> = { "badge-cost": costBadge, "badge-power": powerBadge, "card-back": cardBack };
 for (const [id, tiers] of Object.entries(HERO_ART)) for (const [t, url] of Object.entries(tiers)) if (isHeroId(id) && url) ART[artKey(id, t as Tier)] = url;
 for (const [id, tiers] of Object.entries(HERO_FOREGROUND)) for (const [t, url] of Object.entries(tiers)) if (isHeroId(id) && url) ART[foregroundKey(id, t as Tier)] = url;
 for (const [id, url] of Object.entries(HERO_LOGO)) if (isHeroId(id)) ART[logoKey(id)] = url;
