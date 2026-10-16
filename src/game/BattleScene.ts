@@ -1,12 +1,16 @@
 import * as Phaser from "phaser";
-import { CARDS, type CardId } from "./cards";
-import { artKey, createCard, FONT } from "./cardView";
+import { createCard, FONT, viewOf } from "./cardView";
+import type { HeroId } from "./heroes";
+import { SKILL_BY_ID } from "./skills";
 import {
-  canTakeBack, carrierScore, createGame, effectivePower, endPlayerTurn, MAX_ENERGY, MAX_TURNS, moveCard,
-  nextTurn, opponentPlayOne, playCard, result, SLOTS, takeBack, type GameState, type Side,
+  canMove, canTakeBack, cardCost, carrierScore, createGame, effectivePower, endPlayerTurn, isSkill, MAX_ENERGY, MAX_TURNS, moveCard,
+  nextTurn, opponentPlayOne, playCard, result, skillBlock, SLOTS, takeBack, tierOf, type DeckEntry, type GameState, type Outcome, type Side,
 } from "./rules";
 
-export interface Assets { sky: string; carrier: string; art: Record<CardId, string> }
+export interface Assets {
+  sky: string; carrier: string; art: Record<string, string>; deck: DeckEntry[];
+  onResult?: (o: Outcome) => void; onExit?: () => void;
+}
 
 export const W = 720;
 export const H = 1280;
@@ -16,7 +20,8 @@ const SLOT_X: Record<Side, number[]> = { player: [112, 186, 260], opponent: [460
 const SLOT_Y = -18;
 const SLOT_W = 68, SLOT_H = 92;
 const HAND_Y = 1170, HAND_W = 112, HAND_H = 170;
-const HAND_X = [186, 302, 418, 534];
+const handX = (n: number, i: number) => { const span = 470, step = Math.min(116, span / Math.max(n, 1)); return 359 - ((n - 1) * step) / 2 + i * step; };
+const handW = (n: number) => Math.min(HAND_W, 470 / Math.max(n, 1) - 6);
 const HAND_ZONE = { x0: 124, x1: 594, y0: 1068 };
 const LANE_TINT = [0x5fd4ff, 0x7f9dff, 0xff6a5e];
 const HUD_BG = 0x0a1020;
@@ -46,6 +51,8 @@ export class BattleScene extends Phaser.Scene {
   animFrom = new Map<number, { x: number; y: number; impact?: boolean }>();
   lastPower = new Map<number, number>();
   lastScores: number[] = [];
+  resultSent = false;
+  tf = (side: Side) => (h: HeroId) => tierOf(this.g, side, h);
   drag: { src: DragSrc; obj: Phaser.GameObjects.Container; ox: number; oy: number; hover: DropTarget } | null = null;
 
   constructor(private assets: Assets) { super("battle"); }
@@ -53,11 +60,12 @@ export class BattleScene extends Phaser.Scene {
   preload() {
     this.load.image("sky", this.assets.sky);
     this.load.image("carrier", this.assets.carrier);
-    for (const [id, url] of Object.entries(this.assets.art)) this.load.image(artKey(id as CardId), url);
+    for (const [key, url] of Object.entries(this.assets.art)) this.load.image(key, url);
   }
 
   create() {
-    this.g = createGame();
+    this.g = createGame({ player: this.assets.deck });
+    this.resultSent = false;
     this.carriers = []; this.cardLayers = []; this.slotFx = []; this.scoreText = [];
     this.animFrom.clear(); this.lastPower.clear(); this.lastScores = []; this.drag = null;
     this.input.topOnly = true;
@@ -199,10 +207,10 @@ export class BattleScene extends Phaser.Scene {
   refresh() {
     const g = this.g;
     this.turnText.setText(`${g.turn}/${MAX_TURNS}`);
-    this.statusText.setText(g.phase === "opponent" ? "RIVAL IS PLAYING…" : g.phase === "over" ? "MATCH OVER" : "YOUR TURN · DRAG CARDS TO THE LEFT SIDE");
+    this.statusText.setText(g.phase === "opponent" ? "RIVAL IS PLAYING…" : g.phase === "over" ? "MATCH OVER" : "YOUR TURN · DRAG HEROES LEFT · SKILLS ONTO A CARRIER");
     let pt = 0, ot = 0;
-    g.carriers.forEach((c, i) => {
-      const p = carrierScore(c, "player"), o = carrierScore(c, "opponent");
+    g.carriers.forEach((_c, i) => {
+      const p = carrierScore(g, i, "player"), o = carrierScore(g, i, "opponent");
       pt += p; ot += o;
       const st = this.scoreText[i]!;
       if (this.lastScores[i * 2] !== undefined && this.lastScores[i * 2] !== p) this.pulse(st.p);
@@ -240,12 +248,12 @@ export class BattleScene extends Phaser.Scene {
         for (let s = 0; s < SLOTS; s++) {
           const p = c[side][s];
           if (!p) continue;
-          const power = effectivePower(c, side, s);
-          const card = createCard(this, p.id, SLOT_W - 4, SLOT_H - 4, { enemy: side === "opponent", power, compact: true });
+          const power = effectivePower(this.g, i, side, s);
+          const card = createCard(this, viewOf(p.id, this.tf(side)), SLOT_W - 4, SLOT_H - 4, { enemy: side === "opponent", power, compact: true });
           const x = SLOT_X[side][s]!, y = SLOT_Y;
           card.setPosition(x, y);
           layer.add(card);
-          if (side === "player" && !p.locked && this.g.phase === "player") {
+          if (side === "player" && canMove(this.g, i, s)) {
             const ring = this.add.graphics();
             ring.lineStyle(2, 0xbff0ff, 0.9).strokeRoundedRect(-SLOT_W / 2, -SLOT_H / 2, SLOT_W, SLOT_H, 7);
             card.addAt(ring, 0);
@@ -272,10 +280,11 @@ export class BattleScene extends Phaser.Scene {
 
   drawHand() {
     this.handLayer.removeAll(true);
+    const n = this.g.player.hand.length, w = handW(n), hh = Math.round(w * (HAND_H / HAND_W));
     this.g.player.hand.forEach((inst, idx) => {
-      const card = createCard(this, inst.id, HAND_W, HAND_H);
-      const afford = CARDS[inst.id].cost <= this.g.player.energy && this.g.phase === "player";
-      const x = HAND_X[idx]!, y = HAND_Y;
+      const card = createCard(this, viewOf(inst.id, this.tf("player")), w, hh);
+      const afford = cardCost(inst.id) <= this.g.player.energy && this.g.phase === "player";
+      const x = handX(n, idx), y = HAND_Y + (HAND_H - hh) / 2;
       card.setPosition(x, y).setAlpha(afford ? 1 : 0.55);
       card.setInteractive({ useHandCursor: true, draggable: this.g.phase === "player" });
       card.setData("src", { kind: "hand", idx, uid: inst.uid } satisfies DragSrc);
@@ -294,10 +303,19 @@ export class BattleScene extends Phaser.Scene {
 
   drawHighlights() {
     const d = this.drag;
-    const handCost = d?.src.kind === "hand" ? CARDS[this.g.player.hand[d.src.idx]!.id].cost : 0;
+    const handId = d?.src.kind === "hand" ? this.g.player.hand[d.src.idx]!.id : null;
+    const handCost = handId ? cardCost(handId) : 0;
     this.g.carriers.forEach((c, i) => {
       const fx = this.slotFx[i]!;
       fx.clear();
+      if (handId && isSkill(handId)) {
+        const ok = handCost <= this.g.player.energy && skillBlock(this.g, "player", handId, i) === null;
+        const hov = ok && d?.hover?.kind === "slot" && d.hover.c === i;
+        const col = SKILL_BY_ID[handId]!.ultimate ? GOLD : 0xb07bff;
+        fx.fillStyle(col, hov ? 0.35 : ok ? 0.16 : 0.04).fillRoundedRect(64, SLOT_Y - SLOT_H / 2 - 8, 592, SLOT_H + 16, 12);
+        fx.lineStyle(hov ? 3 : 2, col, ok ? 1 : 0.25).strokeRoundedRect(64, SLOT_Y - SLOT_H / 2 - 8, 592, SLOT_H + 16, 12);
+        return;
+      }
       for (const side of ["player", "opponent"] as Side[]) {
         for (let s = 0; s < SLOTS; s++) {
           if (c[side][s] !== null && !(d?.src.kind === "board" && d.src.c === i && d.src.s === s && side === "player")) continue;
@@ -371,23 +389,33 @@ export class BattleScene extends Phaser.Scene {
 
     if (d.src.kind === "hand") {
       const idx = d.src.idx;
-      if (t?.kind === "slot" && t.side === "player") {
+      const id = g.player.hand[idx]!.id;
+      if (isSkill(id)) {
+        if (t?.kind === "slot") {
+          const block = skillBlock(g, "player", id, t.c);
+          if (cardCost(id) > g.player.energy) msg = "NOT ENOUGH ENERGY";
+          else if (block) msg = block;
+          else if (playCard(g, "player", idx, t.c, t.s)) { this.skillFx(t.c, SKILL_BY_ID[id]!.name, CYAN); this.refresh(); return; }
+        }
+        this.animFrom.set(d.src.uid, pos);
+      } else if (t?.kind === "slot" && t.side === "player") {
         if (playCard(g, "player", idx, t.c, t.s)) this.animFrom.set(d.src.uid, { ...pos, impact: true });
         else msg = g.carriers[t.c]!.player[t.s] ? "SLOT OCCUPIED" : "NOT ENOUGH ENERGY";
       } else if (t?.kind === "slot") msg = "RIVAL SIDE";
       else if (t === null) msg = null;
-      if (!(t?.kind === "slot" && t.side === "player" && !msg)) this.animFrom.set(d.src.uid, pos);
+      if (!isSkill(id) && !(t?.kind === "slot" && t.side === "player" && !msg)) this.animFrom.set(d.src.uid, pos);
     } else {
       const { c, s, uid } = d.src;
       if (t?.kind === "hand" && canTakeBack(g, c, s)) {
-        const cost = CARDS[g.carriers[c]!.player[s]!.id].cost;
+        const cost = g.carriers[c]!.player[s]!.cost;
         takeBack(g, c, s);
         this.animFrom.set(uid, pos);
         this.floatText(`+${cost} ENERGY`, 64, 1090, "#7fd8ff");
       } else if (t?.kind === "slot" && t.side === "player" && moveCard(g, c, s, t.c, t.s)) {
         this.animFrom.set(uid, { ...pos, impact: true });
       } else {
-        if (t?.kind === "slot" && t.side === "opponent") msg = "RIVAL SIDE";
+        if (t?.kind === "hand") msg = "SKILL USED · HERO LOCKED IN";
+        else if (t?.kind === "slot" && t.side === "opponent") msg = "RIVAL SIDE";
         else if (t?.kind === "slot") msg = "SLOT OCCUPIED";
         this.animFrom.set(uid, pos);
       }
@@ -419,6 +447,16 @@ export class BattleScene extends Phaser.Scene {
     this.tweens.add({ targets: glow, alpha: 0, duration: 600, delay: 150, onComplete: () => glow.destroy() });
   }
 
+  skillFx(ci: number, name: string, color: number) {
+    const cont = this.carriers[ci]!;
+    const ring = this.add.circle(360, SLOT_Y, 40, color, 0.15).setStrokeStyle(5, color, 1);
+    cont.add(ring);
+    this.tweens.add({ targets: ring, scale: 6, alpha: 0, duration: 520, onComplete: () => ring.destroy() });
+    const t = this.add.text(360, cont.y - 92, name, { fontFamily: FONT, fontSize: "34px", color: "#ffffff", fontStyle: "700", stroke: Phaser.Display.Color.IntegerToColor(color).rgba, strokeThickness: 6 }).setOrigin(0.5).setDepth(70);
+    this.tweens.add({ targets: t, y: t.y - 30, alpha: 0, delay: 500, duration: 500, onComplete: () => t.destroy() });
+    this.cameras.main.shake(90, 0.003);
+  }
+
   pulse(t: Phaser.GameObjects.Text) {
     this.tweens.add({ targets: t, scale: 1.35, duration: 120, yoyo: true });
   }
@@ -441,7 +479,8 @@ export class BattleScene extends Phaser.Scene {
     const step = () => {
       const m = opponentPlayOne(this.g);
       if (m) {
-        this.animFrom.set(m.card.uid, { x: W - 52, y: 46, impact: true });
+        if (m.skill) this.skillFx(m.carrier, SKILL_BY_ID[m.card.id]!.name, CORAL);
+        else this.animFrom.set(m.card.uid, { x: W - 52, y: 46, impact: true });
         this.refresh();
         this.time.delayedCall(450, step);
       } else {
@@ -457,6 +496,7 @@ export class BattleScene extends Phaser.Scene {
 
   showResult() {
     const r = result(this.g);
+    if (!this.resultSent) { this.resultSent = true; this.assets.onResult?.(r.outcome); }
     const o = this.add.container(W / 2, 560).setDepth(100);
     const bg = this.add.graphics();
     const col = r.outcome === "win" ? CYAN : r.outcome === "loss" ? CORAL : GOLD;
@@ -466,10 +506,17 @@ export class BattleScene extends Phaser.Scene {
     o.add(this.add.text(0, -80, r.outcome === "win" ? "VICTORY" : r.outcome === "loss" ? "DEFEAT" : "DRAW",
       { fontFamily: FONT, fontSize: "84px", color: Phaser.Display.Color.IntegerToColor(col).rgba, fontStyle: "700" }).setOrigin(0.5));
     o.add(this.add.text(0, 0, `CARRIERS WON ${r.won} · LOST ${r.lost}`, { fontFamily: FONT, fontSize: "30px", color: "#dfe7ff" }).setOrigin(0.5));
-    const btn = this.add.text(0, 80, "  PLAY AGAIN  ", { fontFamily: FONT, fontSize: "36px", color: "#1a1206", backgroundColor: "#ffc23a", padding: { x: 10, y: 4 }, fontStyle: "700" })
+    const btn = this.add.text(this.assets.onExit ? -110 : 0, 80, " PLAY AGAIN ", { fontFamily: FONT, fontSize: "36px", color: "#1a1206", backgroundColor: "#ffc23a", padding: { x: 10, y: 4 }, fontStyle: "700" })
       .setOrigin(0.5).setInteractive({ useHandCursor: true });
     btn.on("pointerdown", () => this.scene.restart());
     o.add(btn);
+    if (this.assets.onExit) {
+      const menu = this.add.text(110, 80, " MENU ", { fontFamily: FONT, fontSize: "36px", color: "#ffffff", backgroundColor: "#24345c", padding: { x: 10, y: 4 }, fontStyle: "700" })
+        .setOrigin(0.5).setInteractive({ useHandCursor: true });
+      menu.on("pointerdown", () => this.assets.onExit?.());
+      o.add(menu);
+    }
+    if (r.outcome !== "loss") o.add(this.add.text(0, 124, `+${r.outcome === "win" ? 3 : 1} SHARDS`, { fontFamily: FONT, fontSize: "24px", color: "#ffd76a" }).setOrigin(0.5));
     o.setScale(0.6).setAlpha(0);
     this.tweens.add({ targets: o, scale: 1, alpha: 1, duration: 300, ease: "Back.out" });
   }

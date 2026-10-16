@@ -1,44 +1,37 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import sky from "@/assets/scene-sky.jpg";
-import carrier from "@/assets/carrier-stylized.png";
-import vanguard from "@/assets/card-vanguard.jpg";
-import riftdancer from "@/assets/card-riftdancer.jpg";
-import skyguard from "@/assets/card-skyguard.jpg";
-import aurora from "@/assets/card-aurora.jpg";
-
-const ASSETS = { sky, carrier, art: { vanguard, riftdancer, skyguard, aurora } };
+import { heroArt } from "@/game/heroArt";
+import { Shards, useProfile } from "@/components/scene";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "SCENE — Carrier Card Battler" },
-      { name: "description", content: "Play SCENE: a portrait card battler across three floating sky carriers." },
+      { name: "description", content: "Collect 20 heroes, upgrade them to Apex, build an 8-hero deck and battle across three sky carriers." },
       { property: "og:title", content: "SCENE — Carrier Card Battler" },
-      { property: "og:description", content: "Play SCENE: a portrait card battler across three floating sky carriers." },
+      { property: "og:description", content: "Collect 20 heroes, upgrade them to Apex, build an 8-hero deck and battle across three sky carriers." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
   }),
-  component: Index,
+  component: Home,
 });
 
-function Index() {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    let game: { destroy: (b: boolean) => void } | undefined;
-    let dead = false;
-    import("@/game/main").then(async (m) => {
-      if (dead || !ref.current) return;
-      game = await m.startGame(ref.current, ASSETS);
-      if (dead) game.destroy(true);
-    });
-    return () => { dead = true; game?.destroy(true); };
-  }, []);
+function Home() {
+  const p = useProfile();
+  const btn = "block w-full rounded-lg border border-border bg-card/80 px-6 py-3 text-center font-display text-3xl tracking-widest backdrop-blur hover:border-accent";
   return (
-    <main className="flex h-dvh w-full items-center justify-center bg-background">
-      <h1 className="sr-only">SCENE</h1>
-      <div ref={ref} className="h-full w-full max-w-[min(100vw,56.25dvh)] touch-none select-none" onContextMenu={(e) => e.preventDefault()} />
+    <main className="relative flex min-h-dvh flex-col items-center justify-end overflow-hidden bg-background px-6 pb-12 text-foreground">
+      <img src={sky} alt="" className="absolute inset-0 h-full w-full object-cover opacity-60" />
+      <img src={heroArt("aruvi", "apex")} alt="ARUVI" className="absolute left-1/2 top-0 h-[70dvh] -translate-x-1/2 object-contain" />
+      <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+      <div className="relative w-full max-w-sm space-y-3">
+        <h1 className="text-center font-display text-8xl font-bold tracking-[0.2em]">SCENE</h1>
+        {p && <p className="text-center"><Shards n={p.shards} /> <span className="text-muted-foreground">shards</span></p>}
+        <Link to="/battle" className={`${btn} border-primary bg-primary text-primary-foreground hover:border-primary`}>BATTLE</Link>
+        <Link to="/collection" className={btn}>HEROES</Link>
+        <Link to="/deck" className={btn}>DECK</Link>
+      </div>
     </main>
   );
 }

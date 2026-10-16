@@ -10,33 +10,73 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BattleRouteImport } from './routes/battle'
+import { Route as CollectionRouteImport } from './routes/collection'
+import { Route as DeckRouteImport } from './routes/deck'
+import { Route as HeroesIdRouteImport } from './routes/heroes.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BattleRoute = BattleRouteImport.update({
+  id: '/battle',
+  path: '/battle',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CollectionRoute = CollectionRouteImport.update({
+  id: '/collection',
+  path: '/collection',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DeckRoute = DeckRouteImport.update({
+  id: '/deck',
+  path: '/deck',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HeroesIdRoute = HeroesIdRouteImport.update({
+  id: '/heroes/$id',
+  path: '/heroes/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/battle': typeof BattleRoute
+  '/collection': typeof CollectionRoute
+  '/deck': typeof DeckRoute
+  '/heroes/$id': typeof HeroesIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/battle': typeof BattleRoute
+  '/collection': typeof CollectionRoute
+  '/deck': typeof DeckRoute
+  '/heroes/$id': typeof HeroesIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/battle': typeof BattleRoute
+  '/collection': typeof CollectionRoute
+  '/deck': typeof DeckRoute
+  '/heroes/$id': typeof HeroesIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/battle' | '/collection' | '/deck' | '/heroes/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/battle' | '/collection' | '/deck' | '/heroes/$id'
+  id: '__root__' | '/' | '/battle' | '/collection' | '/deck' | '/heroes/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BattleRoute: typeof BattleRoute
+  CollectionRoute: typeof CollectionRoute
+  DeckRoute: typeof DeckRoute
+  HeroesIdRoute: typeof HeroesIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +88,43 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/battle': {
+      id: '/battle'
+      path: '/battle'
+      fullPath: '/battle'
+      preLoaderRoute: typeof BattleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/collection': {
+      id: '/collection'
+      path: '/collection'
+      fullPath: '/collection'
+      preLoaderRoute: typeof CollectionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/deck': {
+      id: '/deck'
+      path: '/deck'
+      fullPath: '/deck'
+      preLoaderRoute: typeof DeckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/heroes/$id': {
+      id: '/heroes/$id'
+      path: '/heroes/$id'
+      fullPath: '/heroes/$id'
+      preLoaderRoute: typeof HeroesIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BattleRoute: BattleRoute,
+  CollectionRoute: CollectionRoute,
+  DeckRoute: DeckRoute,
+  HeroesIdRoute: HeroesIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
