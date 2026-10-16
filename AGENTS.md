@@ -10,3 +10,4 @@
 <!-- LOVABLE:END -->
 
 - Game logic lives in src/game/rules.ts (pure, tested); Phaser rendering in src/game/BattleScene.ts, loaded client-only via dynamic import — keeps rules testable and SSR-safe.
+- Board view is rebuilt from GameState on every refresh(); UI objects never hold game state (animations use a uid->from-position hint map) — prevents duplicate/stale cards during drag, take-back and repositioning.
