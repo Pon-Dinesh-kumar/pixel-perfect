@@ -1,4 +1,4 @@
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 import { BattleScene, H, W, type Assets } from "./BattleScene";
 
 export async function startGame(parent: HTMLElement, assets: Assets) {

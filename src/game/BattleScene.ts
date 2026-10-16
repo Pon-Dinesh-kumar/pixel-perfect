@@ -1,4 +1,4 @@
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 import { CARDS, type CardId } from "./cards";
 export interface Assets { sky: string; carrier: string; art: Record<CardId, string> }
 import { artKey, createCard, FONT } from "./cardView";

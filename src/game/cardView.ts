@@ -1,4 +1,4 @@
-import Phaser from "phaser";
+import * as Phaser from "phaser";
 import { CARDS, type CardId } from "./cards";
 
 export const FONT = "Teko, Rajdhani, sans-serif";
