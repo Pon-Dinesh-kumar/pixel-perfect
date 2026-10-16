@@ -117,6 +117,9 @@ function RootComponent() {
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <Toaster theme="dark" position="top-center" />
+      <div className="rotate-lock fixed inset-0 z-[100] flex-col items-center justify-center gap-2 bg-background text-center font-display text-3xl tracking-widest text-foreground">
+        <span className="text-6xl">⟲</span>ROTATE TO PORTRAIT
+      </div>
     </QueryClientProvider>
   );
 }
