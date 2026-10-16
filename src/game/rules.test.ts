@@ -84,6 +84,28 @@ describe("battle", () => {
     expect(canPlay(g, "player", 1, 0, 0)).toBe(false); // no ally
   });
 
+  it("normal skills only work on their hero's carrier", () => {
+    const g = game();
+    g.player.energy = 6;
+    setHand(g, ["aruvi", "kavin"]);
+    playCard(g, "player", 0, 0, 0); // aruvi on carrier 0 -> adds aruvi-s1
+    playCard(g, "player", 0, 1, 0); // kavin on carrier 1
+    g.player.energy = 6;
+    const i = g.player.hand.findIndex((c) => c.id === "aruvi-s1");
+    expect(canPlay(g, "player", i, 1, 0)).toBe(false);
+    expect(canPlay(g, "player", i, 0, 0)).toBe(true);
+  });
+
+  it("ultimate skills work on any carrier", () => {
+    const g = game();
+    g.player.energy = 6;
+    setHand(g, ["kavin", "aruvi-ult"]); // CHRONOBREAK not needed; aruvi ultimate buffAll
+    playCard(g, "player", 0, 1, 0); // kavin on carrier 1, aruvi absent
+    g.player.energy = 6;
+    const i = g.player.hand.findIndex((c) => c.id === "aruvi-ult");
+    expect(canPlay(g, "player", i, 1, 0)).toBe(true);
+  });
+
   it("rejects unaffordable plays and occupied slots", () => {
     const g = game();
     setHand(g, ["amara", "yuki"]);

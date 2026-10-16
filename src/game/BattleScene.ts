@@ -2,6 +2,8 @@ import * as Phaser from "phaser";
 import { createCard, createDetail, FONT, viewOf, type CardView } from "./cardView";
 import type { HeroId } from "./heroes";
 import { SKILL_BY_ID } from "./skills";
+import { handLayout, nearestIndex, type HandPos } from "./handLayout";
+import { HERO_BY_ID, isHeroId } from "./heroes";
 import {
   canMove, canTakeBack, cardCost, energyForTurn, carrierScore, createGame, effectivePower, endPlayerTurn, isSkill, MAX_ENERGY, MAX_TURNS, moveCard,
   nextTurn, opponentPlayOne, playCard, result, skillBlock, SLOTS, takeBack, tierOf, type DeckEntry, type GameState, type Outcome, type Side,
@@ -14,15 +16,14 @@ export interface Assets {
 
 export const W = 720;
 export const H = 1280;
-const CARRIER_Y = [262, 532, 802];
+const CARRIER_Y = [270, 565, 860];
 /** Player owns the LEFT half of each deck, rival the RIGHT half. */
-const SLOT_X: Record<Side, number[]> = { player: [112, 186, 260], opponent: [460, 534, 608] };
-const SLOT_Y = -18;
-const SLOT_W = 68, SLOT_H = 92;
-const HAND_Y = 1170, HAND_W = 112, HAND_H = 170;
-const handX = (n: number, i: number) => { const span = 470, step = Math.min(116, span / Math.max(n, 1)); return 359 - ((n - 1) * step) / 2 + i * step; };
-const handW = (n: number) => Math.min(HAND_W, 470 / Math.max(n, 1) - 6);
-const HAND_ZONE = { x0: 124, x1: 594, y0: 1068 };
+const SLOT_X: Record<Side, number[]> = { player: [70, 166, 262], opponent: [458, 554, 650] };
+const SLOT_Y = -24;
+const SLOT_W = 90, SLOT_H = 122;
+const HAND_Y = 1185, HAND_W = 118, HAND_H = 178;
+const HAND_CX = 352, HAND_SPAN = 500;
+const HAND_ZONE = { x0: 100, x1: 600, y0: 1068 };
 const LANE_TINT = [0x5fd4ff, 0x7f9dff, 0xff6a5e];
 const HUD_BG = 0x0a1020;
 const CYAN = 0x4fc3ff, CORAL = 0xff5a64, GOLD = 0xffc23a;
@@ -36,6 +37,9 @@ export class BattleScene extends Phaser.Scene {
   carriers: Phaser.GameObjects.Container[] = [];
   cardLayers: Phaser.GameObjects.Container[] = [];
   slotFx: Phaser.GameObjects.Graphics[] = [];
+  laneGlow: Phaser.GameObjects.Graphics[] = [];
+  handCards: { card: Phaser.GameObjects.Container; pos: HandPos }[] = [];
+  peek = -1;
   scoreText: { p: Phaser.GameObjects.Text; o: Phaser.GameObjects.Text }[] = [];
   handLayer!: Phaser.GameObjects.Container;
   handGlow!: Phaser.GameObjects.Graphics;
@@ -66,7 +70,7 @@ export class BattleScene extends Phaser.Scene {
   create() {
     this.g = createGame({ player: this.assets.deck });
     this.resultSent = false;
-    this.carriers = []; this.cardLayers = []; this.slotFx = []; this.scoreText = [];
+    this.carriers = []; this.cardLayers = []; this.slotFx = []; this.scoreText = []; this.laneGlow = []; this.handCards = [];
     this.animFrom.clear(); this.lastPower.clear(); this.lastScores = []; this.drag = null;
     this.input.topOnly = true;
     this.input.dragDistanceThreshold = 4;
@@ -92,10 +96,39 @@ export class BattleScene extends Phaser.Scene {
     mist.fillStyle(0xdfeaff, 1);
     for (let i = 0; i < 8; i++) mist.fillEllipse(Phaser.Math.Between(0, W), Phaser.Math.Between(180, 960), Phaser.Math.Between(180, 300), Phaser.Math.Between(22, 40));
     this.tweens.add({ targets: mist, x: 36, duration: 10000, yoyo: true, repeat: -1, ease: "Sine.inOut" });
+    this.dynamicSky();
     this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
       this.bg.x = W / 2 + (p.x / W - 0.5) * -14;
       this.bg.y = H / 2 + (p.y / H - 0.5) * -10;
     });
+  }
+
+  /** Living sky: light rays, drifting cloud layers, rising dust and distant ships. */
+  dynamicSky() {
+    const rays = this.add.graphics().setDepth(-7).setBlendMode(Phaser.BlendModes.ADD);
+    for (let k = 0; k < 4; k++) rays.fillStyle(0x9fd8ff, 0.05).fillTriangle(120 + k * 160, -40, 40 + k * 160, H, 200 + k * 160, H);
+    this.tweens.add({ targets: rays, alpha: 0.35, duration: 4000, yoyo: true, repeat: -1, ease: "Sine.inOut" });
+    const layers = [{ n: 5, a: 0.08, sp: 60000, sc: 1.4 }, { n: 6, a: 0.13, sp: 34000, sc: 1 }, { n: 4, a: 0.18, sp: 20000, sc: 0.7 }];
+    layers.forEach((L, li) => {
+      for (let k = 0; k < L.n; k++) {
+        const y = Phaser.Math.Between(140, 1000);
+        const cl = this.add.ellipse(Phaser.Math.Between(-200, W + 200), y, 260 * L.sc, 46 * L.sc, 0xdfeaff, L.a).setDepth(-8 + li * 0.1);
+        const go = () => this.tweens.add({ targets: cl, x: W + 260, duration: L.sp * ((W + 260 - cl.x) / (W + 520)), onComplete: () => { cl.x = -260; go(); } });
+        go();
+      }
+    });
+    for (let k = 0; k < 26; k++) {
+      const d = this.add.circle(Phaser.Math.Between(0, W), Phaser.Math.Between(0, H), Phaser.Math.FloatBetween(1, 2.6), 0xcfe8ff, 0.6).setDepth(-6).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: d, y: d.y - 300, alpha: 0, duration: Phaser.Math.Between(5000, 9000), repeat: -1, delay: Phaser.Math.Between(0, 5000), onRepeat: () => { d.y = Phaser.Math.Between(400, H); d.alpha = 0.6; } });
+    }
+    const ship = this.add.graphics().setDepth(-7.5).setAlpha(0.5);
+    ship.fillStyle(0x0a1530, 1).fillTriangle(-40, 0, 40, -6, 40, 6).fillRect(-10, -14, 20, 6);
+    ship.fillStyle(0xff8a5e, 1).fillCircle(42, 0, 3);
+    const fly = () => {
+      ship.setPosition(-80, Phaser.Math.Between(160, 900)).setScale(Phaser.Math.FloatBetween(0.5, 1));
+      this.tweens.add({ targets: ship, x: W + 80, y: `-=${Phaser.Math.Between(20, 80)}`, duration: Phaser.Math.Between(14000, 22000), delay: Phaser.Math.Between(2000, 8000), onComplete: fly });
+    };
+    fly();
   }
 
   drawCarrier(i: number, y: number) {
@@ -109,6 +142,9 @@ export class BattleScene extends Phaser.Scene {
     sh.fillStyle(0x050a18, 0.4).fillEllipse(SX + SW / 2, SY + SH + 30, SW * 0.7, 20);
     sh.fillStyle(tint, 0.16).fillEllipse(SX + SW / 2, SY + SH - 10, SW * 0.55, 24);
     c.add(sh);
+    const lg = this.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    c.add(lg);
+    this.laneGlow[i] = lg;
     c.add(this.add.image(SX, SY, "carrier").setOrigin(0, 0).setDisplaySize(SW, SH));
 
     // deck ownership: left half player (cyan), right half rival (coral)
@@ -123,25 +159,25 @@ export class BattleScene extends Phaser.Scene {
 
     // centre score / VS block
     const sp = this.add.graphics();
-    sp.fillStyle(HUD_BG, 0.95).fillRoundedRect(304, -60, 112, 76, 12);
-    sp.fillStyle(CYAN, 0.22).fillRoundedRect(304, -60, 56, 76, { tl: 12, bl: 12, tr: 0, br: 0 });
-    sp.fillStyle(CORAL, 0.22).fillRoundedRect(360, -60, 56, 76, { tl: 0, bl: 0, tr: 12, br: 12 });
-    sp.lineStyle(2, 0xffffff, 0.2).strokeRoundedRect(304, -60, 112, 76, 12);
+    sp.fillStyle(HUD_BG, 0.95).fillRoundedRect(312, -66, 96, 84, 12);
+    sp.fillStyle(CYAN, 0.22).fillRoundedRect(312, -66, 48, 84, { tl: 12, bl: 12, tr: 0, br: 0 });
+    sp.fillStyle(CORAL, 0.22).fillRoundedRect(360, -66, 48, 84, { tl: 0, bl: 0, tr: 12, br: 12 });
+    sp.lineStyle(2, 0xffffff, 0.2).strokeRoundedRect(312, -66, 96, 84, 12);
     c.add(sp);
-    c.add(this.add.text(360, -66, "VS", { fontFamily: FONT, fontSize: "16px", color: "#ffc23a", fontStyle: "700", backgroundColor: "#0a1020", padding: { x: 4, y: 0 } }).setOrigin(0.5));
-    const p = this.add.text(332, -20, "0", { fontFamily: FONT, fontSize: "44px", color: "#7fd8ff", fontStyle: "700" }).setOrigin(0.5);
-    const o = this.add.text(388, -20, "0", { fontFamily: FONT, fontSize: "44px", color: "#ff8a8f", fontStyle: "700" }).setOrigin(0.5);
+    c.add(this.add.text(360, -72, "VS", { fontFamily: FONT, fontSize: "16px", color: "#ffc23a", fontStyle: "700", backgroundColor: "#0a1020", padding: { x: 4, y: 0 } }).setOrigin(0.5));
+    const p = this.add.text(336, -22, "0", { fontFamily: FONT, fontSize: "44px", color: "#7fd8ff", fontStyle: "700" }).setOrigin(0.5);
+    const o = this.add.text(384, -22, "0", { fontFamily: FONT, fontSize: "44px", color: "#ff8a8f", fontStyle: "700" }).setOrigin(0.5);
     c.add([p, o]);
     this.scoreText[i] = { p, o };
 
     // lane chip above deck
     const col = Phaser.Display.Color.IntegerToColor(tint).rgba;
     const chip = this.add.graphics();
-    chip.fillStyle(HUD_BG, 0.85).fillRoundedRect(22, -104, 150, 30, 6);
-    chip.fillStyle(tint, 1).fillRect(22, -104, 4, 30);
+    chip.fillStyle(HUD_BG, 0.85).fillRoundedRect(22, -124, 150, 30, 6);
+    chip.fillStyle(tint, 1).fillRect(22, -124, 4, 30);
     c.add(chip);
-    c.add(this.add.text(34, -103, `0${i + 1}`, { fontFamily: FONT, fontSize: "26px", color: col, fontStyle: "700" }));
-    c.add(this.add.text(68, -99, `${this.g.carriers[i]!.name} LANE`, { fontFamily: FONT, fontSize: "20px", color: "#eef3ff", fontStyle: "600" }));
+    c.add(this.add.text(34, -123, `0${i + 1}`, { fontFamily: FONT, fontSize: "26px", color: col, fontStyle: "700" }));
+    c.add(this.add.text(68, -119, `${this.g.carriers[i]!.name} LANE`, { fontFamily: FONT, fontSize: "20px", color: "#eef3ff", fontStyle: "600" }));
 
     const fx = this.add.graphics();
     c.add(fx);
@@ -188,15 +224,18 @@ export class BattleScene extends Phaser.Scene {
 
     const b = this.add.container(656, 1170).setDepth(45);
     const bg = this.add.graphics();
-    const shape = [{ x: -50, y: -50 }, { x: 54, y: -50 }, { x: 50, y: 50 }, { x: -54, y: 50 }];
-    bg.fillStyle(0x000000, 0.45).fillPoints(shape.map((p) => ({ x: p.x + 3, y: p.y + 6 })), true);
-    bg.fillStyle(GOLD, 1).fillPoints(shape, true);
-    bg.fillStyle(0xffe08a, 1).fillRect(-50, -50, 104, 6);
-    bg.lineStyle(2, 0x6a4a00, 0.6).strokePoints(shape, true, true);
+    bg.fillStyle(0x000000, 0.45).fillCircle(3, 6, 56);
+    bg.fillStyle(0x8a5a00, 1).fillCircle(0, 4, 56);
+    bg.fillStyle(GOLD, 1).fillCircle(0, 0, 54);
+    bg.fillStyle(0xffe08a, 0.8).fillEllipse(0, -26, 70, 22);
+    bg.lineStyle(3, 0xfff1c4, 0.9).strokeCircle(0, 0, 54);
     b.add(bg);
+    const halo = this.add.circle(0, 0, 60, GOLD, 0).setStrokeStyle(3, GOLD, 0.8);
+    b.addAt(halo, 0);
+    this.tweens.add({ targets: halo, scale: 1.25, alpha: 0, duration: 1200, repeat: -1 });
     this.endLabel = this.add.text(0, 2, "END\nTURN", { fontFamily: FONT, fontSize: "32px", color: "#1a1206", fontStyle: "700", align: "center", lineSpacing: -12 }).setOrigin(0.5);
     b.add(this.endLabel);
-    b.setSize(108, 100).setInteractive({ useHandCursor: true });
+    b.setSize(112, 112).setInteractive({ useHandCursor: true });
     b.on("pointerdown", () => { if (this.g.phase === "player") b.setScale(0.93).setY(1174); });
     b.on("pointerup", () => { b.setScale(1).setY(1170); this.endTurn(); });
     b.on("pointerout", () => b.setScale(1).setY(1170));
@@ -207,7 +246,7 @@ export class BattleScene extends Phaser.Scene {
   refresh() {
     const g = this.g;
     this.turnText.setText(`${g.turn}/${MAX_TURNS}`);
-    this.statusText.setText(g.phase === "opponent" ? "RIVAL IS PLAYING…" : g.phase === "over" ? "MATCH OVER" : "YOUR TURN · DRAG HEROES LEFT · SKILLS ONTO A CARRIER");
+    this.statusText.setText(g.phase === "opponent" ? "RIVAL IS PLAYING…" : g.phase === "over" ? "MATCH OVER" : "YOUR TURN · TAP = INFO · DRAG = PLAY");
     let pt = 0, ot = 0;
     g.carriers.forEach((_c, i) => {
       const p = carrierScore(g, i, "player"), o = carrierScore(g, i, "opponent");
@@ -216,6 +255,8 @@ export class BattleScene extends Phaser.Scene {
       if (this.lastScores[i * 2] !== undefined && this.lastScores[i * 2] !== p) this.pulse(st.p);
       if (this.lastScores[i * 2 + 1] !== undefined && this.lastScores[i * 2 + 1] !== o) this.pulse(st.o);
       this.lastScores[i * 2] = p; this.lastScores[i * 2 + 1] = o;
+      const lg = this.laneGlow[i];
+      if (lg) { lg.clear(); if (p !== o) lg.fillStyle(p > o ? CYAN : CORAL, 0.28).fillEllipse(360, 30, 640, 90); }
       st.p.setText(`${p}`).setAlpha(p >= o ? 1 : 0.6);
       st.o.setText(`${o}`).setAlpha(o >= p ? 1 : 0.6);
     });
@@ -279,28 +320,62 @@ export class BattleScene extends Phaser.Scene {
     });
   }
 
+  /** Display order: heroes first, then skill cards piled by hero. Returns original hand indices. */
+  handOrder(): number[] {
+    const h = this.g.player.hand;
+    const idx = h.map((_, i) => i);
+    const key = (i: number) => { const id = h[i]!.id; return isHeroId(id) ? "0" : `1${SKILL_BY_ID[id]!.hero}`; };
+    return idx.sort((a, b) => key(a).localeCompare(key(b)) || a - b);
+  }
+
   drawHand() {
     this.handLayer.removeAll(true);
-    const n = this.g.player.hand.length, w = handW(n), hh = Math.round(w * (HAND_H / HAND_W));
-    this.g.player.hand.forEach((inst, idx) => {
+    this.handCards = [];
+    this.peek = -1;
+    const hand = this.g.player.hand, order = this.handOrder();
+    const n = hand.length;
+    const w = n > 7 ? 104 : HAND_W, hh = Math.round(w * (HAND_H / HAND_W));
+    const items = order.map((i) => ({ key: `${hand[i]!.uid}`, group: isHeroId(hand[i]!.id) ? null : SKILL_BY_ID[hand[i]!.id]!.hero }));
+    const pos = handLayout(items, HAND_CX, HAND_Y, HAND_SPAN, w);
+    order.forEach((idx, k) => {
+      const inst = hand[idx]!;
+      const p = pos[k]!;
       const card = createCard(this, viewOf(inst.id, this.tf("player")), w, hh, { hidePower: true });
       const afford = cardCost(inst.id) <= this.g.player.energy && this.g.phase === "player";
-      const x = handX(n, idx), y = HAND_Y + (HAND_H - hh) / 2;
-      card.setPosition(x, y).setAlpha(afford ? 1 : 0.55);
+      card.setPosition(p.x, p.y).setRotation(p.rot).setAlpha(afford ? 1 : 0.55);
       card.setInteractive({ useHandCursor: true, draggable: this.g.phase === "player" });
       card.setData("src", { kind: "hand", idx, uid: inst.uid } satisfies DragSrc);
       this.tappable(card, viewOf(inst.id, this.tf("player")), {});
-      card.on("pointerover", () => !this.drag && card.setY(y - 10));
-      card.on("pointerout", () => !this.drag && card.setY(y));
+      if (!isHeroId(inst.id) && items[k]!.group !== items[k - 1]?.group) {
+        const cnt = items.filter((it) => it.group === items[k]!.group).length;
+        if (cnt > 1) {
+          const tag = this.add.text(0, -hh / 2 - 12, `${HERO_BY_ID[SKILL_BY_ID[inst.id]!.hero].name} ×${cnt}`, { fontFamily: FONT, fontSize: "18px", color: "#ffffff", backgroundColor: "#5a2fb0", padding: { x: 5, y: 0 } }).setOrigin(0.5);
+          card.add(tag);
+        }
+      }
       this.handLayer.add(card);
+      this.handCards.push({ card, pos: p });
       const from = this.animFrom.get(inst.uid);
       if (from) {
         this.animFrom.delete(inst.uid);
         card.setPosition(from.x, from.y);
-        this.tweens.add({ targets: card, x, y, duration: 240, ease: "Cubic.out" });
+        this.tweens.add({ targets: card, x: p.x, y: p.y, duration: 240, ease: "Cubic.out" });
       }
       this.lastPower.delete(inst.uid);
     });
+  }
+
+  /** Finger-slide peek: the card under the pointer lifts and grows; the rest settle. */
+  setPeek(x: number | null) {
+    const k = x === null ? -1 : nearestIndex(this.handCards.map((h) => h.pos), x);
+    if (k === this.peek) return;
+    this.peek = k;
+    this.handCards.forEach(({ card, pos }, i) => {
+      const up = i === k;
+      if (up) this.handLayer.bringToTop(card);
+      this.tweens.add({ targets: card, y: up ? pos.y - 46 : pos.y, rotation: up ? 0 : pos.rot, scale: up ? 1.22 : 1, duration: 120, ease: "Quad.out" });
+    });
+    if (k < 0) this.handCards.forEach(({ card }, i) => this.handLayer.moveTo(card, i));
   }
 
   drawHighlights() {
@@ -314,8 +389,8 @@ export class BattleScene extends Phaser.Scene {
         const ok = handCost <= this.g.player.energy && skillBlock(this.g, "player", handId, i) === null;
         const hov = ok && d?.hover?.kind === "slot" && d.hover.c === i;
         const col = SKILL_BY_ID[handId]!.ultimate ? GOLD : 0xb07bff;
-        fx.fillStyle(col, hov ? 0.35 : ok ? 0.16 : 0.04).fillRoundedRect(64, SLOT_Y - SLOT_H / 2 - 8, 592, SLOT_H + 16, 12);
-        fx.lineStyle(hov ? 3 : 2, col, ok ? 1 : 0.25).strokeRoundedRect(64, SLOT_Y - SLOT_H / 2 - 8, 592, SLOT_H + 16, 12);
+        fx.fillStyle(col, hov ? 0.35 : ok ? 0.16 : 0.04).fillRoundedRect(18, SLOT_Y - SLOT_H / 2 - 8, 684, SLOT_H + 16, 12);
+        fx.lineStyle(hov ? 3 : 2, col, ok ? 1 : 0.25).strokeRoundedRect(18, SLOT_Y - SLOT_H / 2 - 8, 684, SLOT_H + 16, 12);
         return;
       }
       for (const side of ["player", "opponent"] as Side[]) {
@@ -356,6 +431,10 @@ export class BattleScene extends Phaser.Scene {
 
   // ---------- drag & drop ----------
   setupDrag() {
+    this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
+      if (this.drag || this.detail) return;
+      this.setPeek(p.y >= HAND_ZONE.y0 && p.x >= HAND_ZONE.x0 - 40 && p.x <= HAND_ZONE.x1 + 20 ? p.x : null);
+    });
     this.input.on("dragstart", (p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Container) => {
       if (this.drag || this.detail || this.g.phase !== "player") return;
       this.dragged = true;

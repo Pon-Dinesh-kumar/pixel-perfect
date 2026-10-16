@@ -203,6 +203,8 @@ export function skillBlock(g: GameState, side: Side, skillId: string, ci: number
   const c = g.carriers[ci];
   if (!sk || !c) return "INVALID";
   const mine = list(c, side), theirs = list(c, other(side));
+  // normal skills only on their hero's carrier; ultimates on any carrier
+  if (!sk.ultimate && !mine.some((p) => p.id === sk.hero)) return `ONLY ON ${HERO_BY_ID[sk.hero].name}'S CARRIER`;
   switch (sk.effect) {
     case "buffOne": case "buffAll": case "fortify": return mine.length ? null : "NEED A HERO HERE";
     case "buffHero": return mine.some((p) => p.id === sk.hero) ? null : `${HERO_BY_ID[sk.hero].name} MUST BE HERE`;

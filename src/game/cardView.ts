@@ -1,7 +1,7 @@
 import * as Phaser from "phaser";
 import { HERO_BY_ID, isHeroId, type HeroId } from "./heroes";
 import { artKey, logoKey } from "./heroArt";
-import { SKILL_BY_ID } from "./skills";
+import { SKILL_BY_ID, type SkillEffect } from "./skills";
 import { heroPower } from "./rules";
 import { TIER_LABEL, type Tier } from "./tiers";
 
@@ -10,27 +10,27 @@ const GOLD = 0xffc23a;
 
 export interface CardView {
   id: string; hero: HeroId; name: string; cost: number; power: number | null; color: number; art: string; logo: string | null;
-  sub: string; text: string; trigger: string; skill: boolean; ultimate: boolean; tier: Tier;
+  sub: string; text: string; trigger: string; skill: boolean; ultimate: boolean; tier: Tier; effect: SkillEffect | null;
 }
 
-/** Display data for a hero or skill card. Skill cards use their hero's tier art as a placeholder. */
+/** Display data for a hero or skill card. Skill cards use procedural placeholder art (no hero picture). */
 export function viewOf(id: string, tierFor: (h: HeroId) => Tier): CardView {
   if (isHeroId(id)) {
     const h = HERO_BY_ID[id], tier = tierFor(id);
-    return { id, hero: id, name: h.name, cost: h.cost, power: heroPower(id, tier), color: h.color, art: artKey(id, tier), logo: logoKey(id), sub: h.passive.name, text: h.passive.text, trigger: h.passive.trigger, skill: false, ultimate: false, tier };
+    return { id, hero: id, name: h.name, cost: h.cost, power: heroPower(id, tier), color: h.color, art: artKey(id, tier), logo: logoKey(id), sub: h.passive.name, text: h.passive.text, trigger: h.passive.trigger, skill: false, ultimate: false, tier, effect: null };
   }
   const s = SKILL_BY_ID[id]!, tier = tierFor(s.hero);
-  return { id, hero: s.hero, name: s.name, cost: s.cost, power: null, color: HERO_BY_ID[s.hero].color, art: artKey(s.hero, tier), logo: null, sub: s.ultimate ? "ULTIMATE SKILL" : "SKILL", text: s.text, trigger: `One use. Created by ${HERO_BY_ID[s.hero].name}. Drop on a carrier.`, skill: true, ultimate: s.ultimate, tier };
+  const where = s.ultimate ? "Ultimate: drop on ANY carrier." : `Drop on ${HERO_BY_ID[s.hero].name}'s carrier only.`;
+  return { id, hero: s.hero, name: s.name, cost: s.cost, power: null, color: HERO_BY_ID[s.hero].color, art: "", logo: null, sub: s.ultimate ? "ULTIMATE SKILL" : "SKILL", text: s.text, trigger: `One use. Created by ${HERO_BY_ID[s.hero].name}. ${where}`, skill: true, ultimate: s.ultimate, tier, effect: s.effect };
 }
 
 function addArt(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: CardView, x: number, y: number, w: number, h: number, focusTop = 0.03) {
-  if (!scene.textures.exists(v.art)) return null;
+  if (!v.art || !scene.textures.exists(v.art)) return null;
   const img = scene.add.image(0, 0, v.art);
   const tw = img.width, th = img.height;
-  const zoom = v.skill ? 0.6 : 1;
-  const cropH = Math.min(th, tw * (h / w)) * zoom;
+  const cropH = Math.min(th, tw * (h / w));
   const cropW = cropH * (w / h);
-  const cx = (tw - cropW) / 2, cy = th * (v.skill ? 0.12 : focusTop);
+  const cx = (tw - cropW) / 2, cy = th * focusTop;
   img.setCrop(cx, cy, cropW, cropH);
   const sc = w / cropW;
   img.setScale(sc).setOrigin(0, 0).setPosition(x - cx * sc, y - cy * sc);
@@ -38,33 +38,70 @@ function addArt(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: CardVie
   return img;
 }
 
-function addLogo(scene: Phaser.Scene, c: Phaser.GameObjects.Container, key: string, y: number, maxW: number, maxH: number) {
+/** Placeholder skill art: weapon/ability emblem by effect type, tinted in the hero colour. */
+function skillArt(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: CardView, w: number, h: number) {
+  const g = scene.add.graphics();
+  const col = v.ultimate ? GOLD : v.color;
+  g.fillGradientStyle(0x0a0f1c, 0x0a0f1c, v.color, v.color, 1, 1, 0.55, 0.55).fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
+  const cy = -h * 0.08, R = w * 0.36;
+  const hexP = (r: number) => Array.from({ length: 6 }, (_, k) => ({ x: Math.cos((k / 6) * Math.PI * 2 + Math.PI / 6) * r, y: cy + Math.sin((k / 6) * Math.PI * 2 + Math.PI / 6) * r }));
+  g.fillStyle(0x060a14, 0.75).fillPoints(hexP(R), true).lineStyle(Math.max(2, w * 0.03), col, 1).strokePoints(hexP(R), true, true);
+  g.lineStyle(1, col, 0.5).strokePoints(hexP(R * 1.18), true, true);
+  const s = R * 0.62, lw = Math.max(2, w * 0.045);
+  g.lineStyle(lw, 0xffffff, 1).fillStyle(0xffffff, 1);
+  switch (v.effect) {
+    case "buffOne": case "buffHero": // sword
+      g.lineBetween(-s * 0.7, cy + s * 0.7, s * 0.7, cy - s * 0.7);
+      g.lineBetween(-s * 0.55, cy + s * 0.15, -s * 0.15, cy + s * 0.55);
+      g.fillCircle(-s * 0.78, cy + s * 0.78, lw);
+      break;
+    case "buffAll": // burst
+      for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2; g.lineBetween(Math.cos(a) * s * 0.25, cy + Math.sin(a) * s * 0.25, Math.cos(a) * s, cy + Math.sin(a) * s); }
+      break;
+    case "fortify": // shield
+      g.strokePoints([{ x: -s * 0.6, y: cy - s * 0.6 }, { x: s * 0.6, y: cy - s * 0.6 }, { x: s * 0.6, y: cy }, { x: 0, y: cy + s * 0.8 }, { x: -s * 0.6, y: cy }], true, true);
+      break;
+    case "debuffTop": case "debuffAll": // skull
+      g.strokeCircle(0, cy - s * 0.1, s * 0.55);
+      g.fillCircle(-s * 0.22, cy - s * 0.15, s * 0.13).fillCircle(s * 0.22, cy - s * 0.15, s * 0.13);
+      g.lineBetween(-s * 0.25, cy + s * 0.6, s * 0.25, cy + s * 0.6);
+      if (v.effect === "debuffAll") g.lineBetween(-s * 0.8, cy - s * 0.8, s * 0.8, cy + s * 0.8);
+      break;
+  }
+  c.add(g);
+  scene.tweens.add({ targets: g, alpha: 0.85, duration: 900, yoyo: true, repeat: -1 });
+}
+
+function addLogo(scene: Phaser.Scene, c: Phaser.GameObjects.Container, key: string, y: number, maxW: number, maxH: number, x = 0) {
   if (!scene.textures.exists(key)) return null;
-  const img = scene.add.image(0, y, key).setOrigin(0.5, 1);
+  const img = scene.add.image(x, y, key).setOrigin(0.5, 1);
   img.setScale(Math.min(maxW / img.width, maxH / img.height));
   c.add(img);
   return img;
 }
 
-/** Animated tier frame: Ascend pulses in the hero colour, Apex adds a travelling gold spark. */
-function tierFrame(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: CardView, w: number, h: number, r: number) {
+/** Ascend and Apex share the animated hero-colour border. Apex adds hero particles and a hero-matching glow. */
+function tierFrame(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: CardView, w: number, h: number, r: number, big = false) {
   if (v.tier === "base" || v.skill) return;
   const glow = scene.add.graphics();
-  const col = v.tier === "apex" ? GOLD : v.color;
-  glow.lineStyle(v.tier === "apex" ? 4 : 3, col, 1).strokeRoundedRect(-w / 2 - 1, -h / 2 - 1, w + 2, h + 2, r + 1);
+  glow.lineStyle(big ? 5 : 3, v.color, 1).strokeRoundedRect(-w / 2 - 1, -h / 2 - 1, w + 2, h + 2, r + 1);
   c.add(glow);
-  scene.tweens.add({ targets: glow, alpha: 0.35, duration: v.tier === "apex" ? 600 : 900, yoyo: true, repeat: -1, ease: "Sine.inOut" });
-  if (v.tier === "apex") {
-    const spark = scene.add.circle(0, 0, Math.max(2, w * 0.035), 0xffffff, 1);
-    c.add(spark);
-    const per = 2 * (w + h);
-    scene.tweens.addCounter({
-      from: 0, to: per, duration: 2200, repeat: -1,
-      onUpdate: (tw) => {
-        const d = tw.getValue() ?? 0;
-        const [px, py] = d < w ? [d - w / 2, -h / 2] : d < w + h ? [w / 2, d - w - h / 2] : d < 2 * w + h ? [w / 2 - (d - w - h), h / 2] : [-w / 2, h / 2 - (d - 2 * w - h)];
-        spark.setPosition(px, py);
-      },
+  scene.tweens.add({ targets: glow, alpha: 0.35, duration: 900, yoyo: true, repeat: -1, ease: "Sine.inOut" });
+  if (v.tier !== "apex") return;
+  const aura = scene.add.graphics();
+  aura.fillGradientStyle(v.color, v.color, v.color, v.color, 0.45, 0.45, 0, 0).fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h * 0.35);
+  aura.setBlendMode(Phaser.BlendModes.ADD);
+  c.add(aura);
+  scene.tweens.add({ targets: aura, alpha: 0.4, duration: 1400, yoyo: true, repeat: -1 });
+  const count = big ? 18 : 5;
+  for (let k = 0; k < count; k++) {
+    const p = scene.add.circle(0, 0, Math.max(1.5, w * (big ? 0.012 : 0.03)), k % 3 ? v.color : 0xffffff, 1).setBlendMode(Phaser.BlendModes.ADD);
+    c.add(p);
+    const reset = () => p.setPosition(Phaser.Math.Between(-w / 2 + 4, w / 2 - 4), h / 2 - 6).setAlpha(0);
+    reset();
+    scene.tweens.add({
+      targets: p, y: -h / 2 - (big ? 60 : 6), alpha: { from: 1, to: 0 }, x: `+=${Phaser.Math.Between(-12, 12)}`,
+      duration: Phaser.Math.Between(1600, 2800), delay: k * 220, repeat: -1, onRepeat: reset,
     });
   }
 }
@@ -80,48 +117,72 @@ export function createCard(scene: Phaser.Scene, v: CardView, w: number, h: numbe
   base.fillStyle(0x000000, 0.5).fillRoundedRect(-w / 2 + 2, -h / 2 + 5, w, h, r);
   base.fillStyle(0x0a0f1c, 1).fillRoundedRect(-w / 2, -h / 2, w, h, r);
   c.add(base);
-  addArt(scene, c, v, -w / 2 + b, -h / 2 + b, w - b * 2, h - b * 2);
+  if (v.skill) skillArt(scene, c, v, w, h);
+  else addArt(scene, c, v, -w / 2 + b, -h / 2 + b, w - b * 2, h - b * 2);
 
   const ov = scene.add.graphics();
-  if (v.skill) {
-    ov.fillStyle(v.color, 0.3).fillRect(-w / 2 + b, -h / 2 + b, w - b * 2, h - b * 2);
-    ov.lineStyle(2, 0xffffff, 0.3);
-    for (let k = -2; k < 4; k++) ov.lineBetween(-w / 2 + k * w * 0.3, h / 2, -w / 2 + k * w * 0.3 + h * 0.6, -h / 2 + b);
-  }
   ov.fillGradientStyle(0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0, 0, 0.95, 0.95).fillRect(-w / 2 + b, h * 0.05, w - b * 2, h / 2 - h * 0.05 - b);
   ov.lineStyle(b, accent, 1).strokeRoundedRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2, v.skill ? r * 2 : r);
   c.add(ov);
   tierFrame(scene, c, v, w, h, r);
 
-  if (v.logo && scene.textures.exists(v.logo)) addLogo(scene, c, v.logo, h / 2 - h * 0.03, w * 0.96, h * 0.26);
+  const showPower = v.power !== null && !opts.hidePower;
+  if (v.logo && scene.textures.exists(v.logo)) addLogo(scene, c, v.logo, h / 2 - h * 0.03, w * (showPower ? 0.8 : 0.96), h * 0.24, showPower ? -w * 0.08 : 0);
   else {
-    const name = scene.add.text(0, h / 2 - h * 0.1, v.name, { fontFamily: FONT, fontSize: `${Math.max(12, Math.round(w * 0.16))}px`, color: "#f2f5ff", fontStyle: "700", stroke: "#0a0f1c", strokeThickness: 4, align: "center" }).setOrigin(0.5);
-    if (name.width > w * 0.9) name.setScale((w * 0.9) / name.width);
+    const name = scene.add.text(0, h / 2 - h * 0.11, v.name, { fontFamily: FONT, fontSize: `${Math.max(12, Math.round(w * 0.15))}px`, color: "#f2f5ff", fontStyle: "700", stroke: "#0a0f1c", strokeThickness: 4, align: "center", wordWrap: { width: w * 0.95 } }).setOrigin(0.5);
+    if (name.width > w * 0.92) name.setScale((w * 0.92) / name.width);
     c.add(name);
   }
 
-  const big = Math.round(w * 0.3);
-  badges(scene, c, v.power !== null && opts.hidePower ? { ...v, power: null } : v, w, h, big, opts.enemy, opts.power);
+  badges(scene, c, showPower ? v : { ...v, power: null }, w, h, Math.round(w * 0.28), opts.enemy, opts.power);
   c.setSize(w, h);
   return c;
 }
 
+/** Cost: angled energy shard notched into the top-left. Power: shield plate at the bottom-right. */
 function badges(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: CardView, w: number, h: number, big: number, enemy?: boolean, power?: number) {
-  const hx = -w / 2 + big * 0.5, hy = -h / 2 + big * 0.5, hr = big * 0.52;
   const cg = scene.add.graphics();
-  const hex = Array.from({ length: 6 }, (_, k) => ({ x: hx + Math.cos((k / 6) * Math.PI * 2) * hr, y: hy + Math.sin((k / 6) * Math.PI * 2) * hr }));
-  cg.fillStyle(v.skill ? 0x8a3bff : 0x1b6bff, 1).fillPoints(hex, true).lineStyle(2, 0xdff2ff, 1).strokePoints(hex, true, true);
+  const x0 = -w / 2 - big * 0.12, y0 = -h / 2 - big * 0.12, bw = big * 0.95, bh = big * 1.15;
+  const shard = [{ x: x0 + bw * 0.3, y: y0 }, { x: x0 + bw, y: y0 }, { x: x0 + bw * 0.7, y: y0 + bh }, { x: x0, y: y0 + bh }];
+  cg.fillStyle(0x000000, 0.5).fillPoints(shard.map((p) => ({ x: p.x + 2, y: p.y + 3 })), true);
+  cg.fillStyle(v.skill ? 0x7a2fff : 0x1466ff, 1).fillPoints(shard, true);
+  cg.fillStyle(0xffffff, 0.25).fillPoints([shard[0]!, shard[1]!, { x: x0 + bw * 0.9, y: y0 + bh * 0.3 }, { x: x0 + bw * 0.2, y: y0 + bh * 0.3 }], true);
+  cg.lineStyle(Math.max(1.5, big * 0.06), 0xdff2ff, 1).strokePoints(shard, true, true);
   c.add(cg);
-  c.add(scene.add.text(hx, hy + 2, `${v.cost}`, { fontFamily: FONT, fontSize: `${big}px`, color: "#ffffff", fontStyle: "700" }).setOrigin(0.5));
+  c.add(scene.add.text(x0 + bw / 2, y0 + bh / 2 + 1, `${v.cost}`, { fontFamily: FONT, fontSize: `${Math.round(big * 0.95)}px`, color: "#ffffff", fontStyle: "700", stroke: "#0a1a40", strokeThickness: Math.max(2, big * 0.08) }).setOrigin(0.5));
   if (v.power === null) return;
-  const px = w / 2 - big * 0.5, py = -h / 2 + big * 0.5, ps = big * 0.52;
+  const sw = big * 1.0, shh = big * 1.15;
+  const px = w / 2 - sw / 2 + big * 0.1, py = h / 2 - shh / 2 + big * 0.1;
+  const shield = [{ x: px - sw / 2, y: py - shh / 2 }, { x: px + sw / 2, y: py - shh / 2 }, { x: px + sw / 2, y: py + shh * 0.1 }, { x: px, y: py + shh / 2 }, { x: px - sw / 2, y: py + shh * 0.1 }];
   const pg = scene.add.graphics();
-  const dia = [{ x: px, y: py - ps }, { x: px + ps, y: py }, { x: px, y: py + ps }, { x: px - ps, y: py }];
-  pg.fillStyle(enemy ? 0xe0283f : GOLD, 1).fillPoints(dia, true).lineStyle(2, 0xffffff, 1).strokePoints(dia, true, true);
+  pg.fillStyle(0x000000, 0.5).fillPoints(shield.map((p) => ({ x: p.x + 2, y: p.y + 3 })), true);
+  pg.fillStyle(enemy ? 0xe0283f : GOLD, 1).fillPoints(shield, true);
+  pg.lineStyle(Math.max(1.5, big * 0.06), 0xffffff, 1).strokePoints(shield, true, true);
   c.add(pg);
   const pw = power ?? v.power;
   const txt = enemy ? "#ffffff" : pw > v.power ? "#0b7a2e" : pw < v.power ? "#b00020" : "#1a1206";
-  c.add(scene.add.text(px, py + 2, `${pw}`, { fontFamily: FONT, fontSize: `${big}px`, color: txt, fontStyle: "700" }).setOrigin(0.5));
+  c.add(scene.add.text(px, py - shh * 0.04, `${pw}`, { fontFamily: FONT, fontSize: `${Math.round(big * 0.95)}px`, color: txt, fontStyle: "700" }).setOrigin(0.5));
+}
+
+/** Soft-edged mask texture: card body + a wide upper-body shaped break above the frame. */
+function breakMask(scene: Phaser.Scene, key: string, cw: number, ch: number, breakOut: number, r: number) {
+  if (scene.textures.exists(key)) return key;
+  const tw = cw + 40, th = ch + breakOut + 20;
+  const tex = scene.textures.createCanvas(key, tw, th)!;
+  const ctx = tex.getContext();
+  const ox = 20, oy = breakOut + 10;
+  ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.roundRect(ox + 3, oy + 3, cw - 6, ch - 6, r - 2); ctx.fill();
+  if (breakOut) {
+    // head + shoulders: wide soft ellipse reaching well into the card so the break blends naturally
+    const gx = tw / 2, gy = oy + ch * 0.18;
+    const grad = ctx.createRadialGradient(gx, gy, 0, gx, gy, 1);
+    grad.addColorStop(0, "rgba(255,255,255,1)"); grad.addColorStop(0.62, "rgba(255,255,255,1)"); grad.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.save(); ctx.translate(gx, gy); ctx.scale(cw * 0.46, ch * 0.18 + breakOut); ctx.translate(-gx, -gy);
+    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(gx, gy, 1, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  }
+  tex.refresh();
+  return key;
 }
 
 /**
@@ -130,38 +191,48 @@ function badges(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: CardVie
  */
 export function createDetail(scene: Phaser.Scene, v: CardView, W: number, H: number, opts: { enemy?: boolean; power?: number; note?: string | undefined } = {}) {
   const root = scene.add.container(0, 0).setDepth(500);
-  const dim = scene.add.rectangle(W / 2, H / 2, W, H, 0x050914, 0.86).setInteractive();
+  const dim = scene.add.rectangle(W / 2, H / 2, W, H, 0x050914, 0.88).setInteractive();
   root.add(dim);
-  const cw = 420, ch = 600, cx = W / 2, cy = 470;
+  const cw = 420, ch = 600, cx = W / 2, cy = 480;
+  const r = 22;
+  const accent = opts.enemy ? 0xff4a5e : v.ultimate ? GOLD : v.color;
+
+  // hero-matching backdrop (bigger, pulsing for Apex)
+  const back = scene.add.graphics();
+  const ar = v.tier === "apex" && !v.skill ? 380 : 300;
+  for (let k = 6; k > 0; k--) back.fillStyle(v.color, 0.05 * (7 - k)).fillCircle(cx, cy - 60, (ar * k) / 6);
+  back.setBlendMode(Phaser.BlendModes.ADD);
+  root.add(back);
+  if (v.tier === "apex") scene.tweens.add({ targets: back, alpha: 0.55, duration: 1300, yoyo: true, repeat: -1 });
+
   const card = scene.add.container(cx, cy);
   root.add(card);
-  const r = 22;
-  const accent = opts.enemy ? 0xff4a5e : v.tier === "apex" || v.ultimate ? GOLD : v.color;
-
   const bg = scene.add.graphics();
-  bg.fillStyle(v.color, 0.25).fillCircle(0, -40, 300);
   bg.fillStyle(0x0a0f1c, 1).fillRoundedRect(-cw / 2, -ch / 2, cw, ch, r);
   card.add(bg);
 
-  // frame break: upgraded art spills above the top frame edge
-  const breakOut = v.tier !== "base" && !v.skill ? (v.tier === "apex" ? 110 : 70) : 0;
+  const breakOut = v.tier !== "base" && !v.skill ? (v.tier === "apex" ? 130 : 90) : 0;
   const artLayer = scene.add.container(0, 0);
   card.add(artLayer);
-  const img = addArt(scene, artLayer, v, -cw / 2 + 3, -ch / 2 + 3 - breakOut, cw - 6, ch - 6 + breakOut, 0.0);
-  if (img) {
-    const m = scene.make.graphics({}, false);
-    m.fillStyle(0xffffff).fillRoundedRect(cx - cw / 2 + 3, cy - ch / 2 + 3, cw - 6, ch - 6, r - 2);
-    if (breakOut) m.fillEllipse(cx, cy - ch / 2 + 40, cw * 0.62, breakOut * 2 + 80);
-    img.setMask(m.createGeometryMask());
+  if (v.skill) skillArt(scene, artLayer, v, cw, ch);
+  else {
+    const img = addArt(scene, artLayer, v, -cw / 2 + 3, -ch / 2 + 3 - breakOut, cw - 6, ch - 6 + breakOut, 0.0);
+    if (img) {
+      const key = breakMask(scene, `bmask-${breakOut}`, cw, ch, breakOut, r);
+      const m = scene.add.image(cx, cy - ch / 2 - breakOut - 10, key).setOrigin(0.5, 0).setVisible(false);
+      img.setMask(m.createBitmapMask());
+      root.add(m);
+    }
   }
   const fr = scene.add.graphics();
   fr.fillGradientStyle(0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0, 0, 1, 1).fillRect(-cw / 2 + 3, 60, cw - 6, ch / 2 - 63);
   fr.lineStyle(5, accent, 1).strokeRoundedRect(-cw / 2, -ch / 2, cw, ch, r);
   card.add(fr);
-  tierFrame(scene, card, v, cw, ch, r);
-  if (v.logo) addLogo(scene, card, v.logo, ch / 2 - 18, cw * 0.9, 150);
-  else card.add(scene.add.text(0, ch / 2 - 70, v.name, { fontFamily: FONT, fontSize: "64px", color: "#ffffff", fontStyle: "700", stroke: "#0a0f1c", strokeThickness: 6 }).setOrigin(0.5));
-  badges(scene, card, v, cw, ch, 96, opts.enemy, opts.power);
+  tierFrame(scene, card, v, cw, ch, r, true);
+  if (v.logo) addLogo(scene, card, v.logo, ch / 2 - 18, cw * 0.78, 140, -cw * 0.07);
+  else card.add(scene.add.text(0, ch / 2 - 80, v.name, { fontFamily: FONT, fontSize: "60px", color: "#ffffff", fontStyle: "700", stroke: "#0a0f1c", strokeThickness: 6, align: "center", wordWrap: { width: cw - 40 } }).setOrigin(0.5));
+  if (v.skill) card.add(scene.add.text(0, -ch / 2 + 30, "SKILL ART COMING", { fontFamily: FONT, fontSize: "22px", color: "#9fb0d8", backgroundColor: "#0a0f1ccc", padding: { x: 8, y: 0 } }).setOrigin(0.5, 0));
+  badges(scene, card, v, cw, ch, 92, opts.enemy, opts.power);
 
   // info panel
   const py = cy + ch / 2 + 40;
@@ -171,7 +242,6 @@ export function createDetail(scene: Phaser.Scene, v: CardView, W: number, H: num
   root.add(scene.add.text(W / 2, py + 100, opts.note ? `${v.trigger}\n${opts.note}` : v.trigger, { fontFamily: FONT, fontSize: "28px", color: "#9fb0d8", align: "center", wordWrap: { width: W - 100 } }).setOrigin(0.5, 0));
   root.add(scene.add.text(W / 2, H - 60, "TAP TO CLOSE", { fontFamily: FONT, fontSize: "26px", color: "#6f80a8" }).setOrigin(0.5));
 
-  // tilt: device gyroscope when available, pointer otherwise
   const tilt = (nx: number, ny: number) => {
     card.setRotation(nx * 0.05);
     artLayer.setPosition(nx * -14, ny * -10);
