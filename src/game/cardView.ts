@@ -33,7 +33,9 @@ export function viewOf(id: string, tierFor: (h: HeroId) => Tier): CardView {
     const h = HERO_BY_ID[id], tier = tierFor(id);
     return { id, hero: id, name: h.name, cost: h.cost, power: heroPower(id, tier), color: h.color, art: artKey(id, tier), logo: logoKey(id), sub: h.passive.name, text: h.passive.text, trigger: h.passive.trigger, skill: false, ultimate: false, tier, effect: null };
   }
-  const s = SKILL_BY_ID[id]!, tier = tierFor(s.hero);
+  const s = SKILL_BY_ID[id];
+  if (!s) throw new Error(`Unknown card: ${id}`);
+  const tier = tierFor(s.hero);
   const where = s.ultimate ? "Ultimate: drop on ANY carrier." : `Drop on ${HERO_BY_ID[s.hero].name}'s carrier only.`;
   return { id, hero: s.hero, name: s.name, cost: s.cost, power: null, color: HERO_BY_ID[s.hero].color, art: "", logo: null, sub: s.ultimate ? "ULTIMATE SKILL" : "SKILL", text: s.text, trigger: `One use. Created by ${HERO_BY_ID[s.hero].name}. ${where}`, skill: true, ultimate: s.ultimate, tier, effect: s.effect };
 }
@@ -117,10 +119,10 @@ function tierFrame(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: Card
   c.add(aura);
   scene.tweens.add({ targets: aura, alpha: 0.4, duration: 1400, yoyo: true, repeat: -1 });
   const fx = HERO_EFFECTS[v.hero];
-  const count = big ? 12 : 4;
+  const count = big ? 26 : 8;
   for (let k = 0; k < count; k++) {
     const p = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
-    const radius = Math.max(2, w * (big ? 0.016 : 0.035));
+    const radius = Math.max(3, w * (big ? 0.028 : 0.04));
     const points = Array.from({ length: Math.max(3, fx.sides) }, (_, j) => ({
       x: Math.cos(j / Math.max(3, fx.sides) * Math.PI * 2) * radius,
       y: Math.sin(j / Math.max(3, fx.sides) * Math.PI * 2) * radius * (fx.sides === 2 ? 3 : 1),
@@ -130,10 +132,10 @@ function tierFrame(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: Card
       if (fx.motif === "clock" || fx.motif === "kolam") p.lineBetween(-radius, 0, radius, 0).lineBetween(0, -radius, 0, radius);
     } else p.fillStyle(v.color).fillPoints(points, true);
     c.add(p);
-    const reset = () => p.setPosition(-w / 2 + 6 + (k / count) * (w - 12), h / 2 - 6).setAlpha(0.85).setRotation(k);
+    const reset = () => p.setPosition(-w * 0.6 + (k / count) * w * 1.2, h / 2 - 6).setAlpha(1).setRotation(k);
     reset();
-    scene.tweens.add({ targets: p, y: -h / 2 - 12, x: `+=${fx.drift}`, rotation: `+=${fx.motif === "clock" ? -6.28 : 3.14}`,
-      alpha: 0, duration: fx.speed, delay: k * 190, repeat: -1, onRepeat: reset });
+    scene.tweens.add({ targets: p, y: -h / 2 - 30, x: `+=${fx.drift * 1.4}`, rotation: `+=${fx.motif === "clock" ? -6.28 : 3.14}`,
+      alpha: 0, duration: fx.speed + 800, delay: k * 120, repeat: -1, onRepeat: reset });
   }
 }
 
@@ -150,11 +152,7 @@ export function createCard(scene: Phaser.Scene, v: CardView, w: number, h: numbe
   base.fillStyle(0x0a0f1c, 1).fillRoundedRect(-w / 2, -h / 2, w, h, r);
   c.add(base);
   if (opts.concealed) {
-    const back = scene.add.graphics();
-    back.fillStyle(v.color, 0.2).fillRoundedRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6, r);
-    back.lineStyle(2, v.color).strokePoints([{ x: 0, y: -h * 0.28 }, { x: w * 0.3, y: 0 }, { x: 0, y: h * 0.28 }, { x: -w * 0.3, y: 0 }], true, true);
-    c.add(back);
-    c.add(scene.add.text(0, 0, "S", { fontFamily: FONT, fontSize: `${w * 0.5}px`, color: "#f2f5ff" }).setOrigin(0.5));
+    if (scene.textures.exists("card-back")) c.add(scene.add.image(0, 0, "card-back").setDisplaySize(w, h));
     c.setSize(w, h); return c;
   }
   if (v.skill) skillArt(scene, c, v, w, h);
@@ -169,6 +167,9 @@ export function createCard(scene: Phaser.Scene, v: CardView, w: number, h: numbe
   const fade = scene.add.graphics();
   fade.fillGradientStyle(0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0, 0, 0.9, 0.9).fillRect(-w / 2 + b, h * 0.15, w - b * 2, h * 0.35 - b);
   c.add(fade);
+  const rail = scene.add.graphics();
+  rail.lineStyle(3, accent, 1).lineBetween(-w / 2 + r, h / 2 - 1, w / 2 - r, h / 2 - 1);
+  c.add(rail);
 
   const showPower = v.power !== null && !opts.hidePower;
   if (v.logo && scene.textures.exists(v.logo)) addLogo(scene, c, v.logo, h / 2 - h * 0.09, w * 0.86, h * 0.22, 0);
@@ -243,6 +244,9 @@ export function createDetail(scene: Phaser.Scene, v: CardView, W: number, H: num
   const fade = scene.add.graphics();
   fade.fillGradientStyle(0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0, 0, 0.95, 0.95).fillRect(-cw / 2 + 3, ch * 0.15, cw - 6, ch * 0.35 - 3);
   card.add(fade);
+  const rail = scene.add.graphics();
+  rail.lineStyle(5, accent, 1).lineBetween(-cw / 2 + r, ch / 2, cw / 2 - r, ch / 2);
+  card.add(rail);
   if (v.logo) addLogo(scene, card, v.logo, ch / 2 - ch * 0.09, cw * 0.86, ch * 0.22, 0);
   else card.add(scene.add.text(0, ch / 2 - 80, v.name, { fontFamily: FONT, fontSize: "60px", color: "#ffffff", fontStyle: "700", stroke: "#0a0f1c", strokeThickness: 6, align: "center", wordWrap: { width: cw - 40 } }).setOrigin(0.5));
   if (v.skill) card.add(scene.add.text(0, -ch / 2 + 30, "SKILL ART COMING", { fontFamily: FONT, fontSize: "22px", color: "#9fb0d8", backgroundColor: "#0a0f1ccc", padding: { x: 8, y: 0 } }).setOrigin(0.5, 0));
