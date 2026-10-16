@@ -73,7 +73,7 @@ export class BattleScene extends Phaser.Scene {
     this.load.on("loaderror", () => this.assets.onError?.());
     this.load.image("sky", this.assets.sky);
     this.load.image("carrier", this.assets.carrier);
-    const keys = new Set(["badge-cost", "badge-power"]);
+    const keys = new Set(["badge-cost", "badge-power", "card-back"]);
     for (const side of ["player", "opponent"] as Side[]) for (const id of Object.keys(this.g[side].tiers)) {
       if (isHeroId(id)) {
         const tier = tierOf(this.g, side, id);
@@ -282,6 +282,10 @@ export class BattleScene extends Phaser.Scene {
       const p = carrierScore(g, i, "player"), o = carrierScore(g, i, "opponent");
       pt += p; ot += o;
       const st = this.scoreText[i]!;
+      const oldP = this.lastScores[i * 2], oldO = this.lastScores[i * 2 + 1];
+      if (oldP !== undefined && oldO !== undefined && Math.sign(oldP - oldO) !== Math.sign(p - o) && p !== o) {
+        this.floatText(p > o ? "CARRIER LEAD" : "RIVAL LEAD", 360, (this.carriers[i]?.y ?? 0) + 92, p > o ? "#7fd8ff" : "#ff8892");
+      }
       if (this.lastScores[i * 2] !== undefined && this.lastScores[i * 2] !== p) this.pulse(st.p);
       if (this.lastScores[i * 2 + 1] !== undefined && this.lastScores[i * 2 + 1] !== o) this.pulse(st.o);
       this.lastScores[i * 2] = p; this.lastScores[i * 2 + 1] = o;
@@ -338,12 +342,15 @@ export class BattleScene extends Phaser.Scene {
             this.animFrom.delete(p.uid);
             card.setPosition(from.x, from.y - this.carriers[i]!.y).setScale(1.25);
             this.tweens.add({
-              targets: card, x, y, scale: 1, duration: 260, ease: "Back.out",
+              targets: card, x, y, scale: 1, duration: 420, ease: "Cubic.out",
               onComplete: () => from.impact && this.impact(i, x, y, side === "player" ? CYAN : CORAL),
             });
           }
           const prev = this.lastPower.get(p.uid);
-          if (prev !== undefined && prev !== power) this.passiveFx(card, power > prev);
+          if (prev !== undefined && prev !== power) {
+            this.passiveFx(card, power > prev);
+            this.floatText(`${power > prev ? "+" : ""}${power - prev}`, x, (this.carriers[i]?.y ?? 0) + y - 30, power > prev ? "#a0ffcb" : "#ff8892");
+          }
           this.lastPower.set(p.uid, power);
         }
       }
@@ -394,8 +401,12 @@ export class BattleScene extends Phaser.Scene {
       const from = this.animFrom.get(inst.uid);
       if (from) {
         this.animFrom.delete(inst.uid);
-        card.setPosition(from.x, from.y);
-        this.tweens.add({ targets: card, x: p.x, y: p.y, duration: 240, ease: "Cubic.out" });
+        card.setPosition(from.x, from.y).setScale(0.5).setAlpha(1);
+        const trail = this.add.graphics().setDepth(65);
+        trail.lineStyle(3, HERO_BY_ID[viewOf(inst.id, this.tf("player")).hero].color, 0.8);
+        trail.lineBetween(from.x, from.y, p.x, p.y);
+        this.tweens.add({ targets: trail, alpha: 0, duration: 900, onComplete: () => trail.destroy() });
+        this.tweens.add({ targets: card, x: p.x, y: p.y, scale: 1, duration: 760, delay: k * 60, ease: "Cubic.out" });
       }
       this.lastPower.delete(inst.uid);
     });
@@ -481,6 +492,7 @@ export class BattleScene extends Phaser.Scene {
       obj.parentContainer?.remove(obj);
       this.add.existing(obj);
       obj.setPosition(wx, wy).setDepth(300).setScale(src.kind === "hand" ? 1.08 : 1.2).setAlpha(1);
+      this.audio.play("draw");
       this.drag = { src, obj, ox: wx - p.worldX, oy: wy - p.worldY, hover: null };
       this.drawHighlights();
     });
@@ -512,11 +524,13 @@ export class BattleScene extends Phaser.Scene {
   }
 
   finishDrag(t: DropTarget) {
-    const d = this.drag!;
+    const d = this.drag;
+    if (!d) return;
     this.drag = null;
     const pos = { x: d.obj.x, y: d.obj.y };
     d.obj.destroy();
     const g = this.g;
+    const energyBefore = g.player.energy;
     let msg: string | null = null;
 
     if (d.src.kind === "hand") {
@@ -527,7 +541,12 @@ export class BattleScene extends Phaser.Scene {
           const block = skillBlock(g, "player", id, t.c);
           if (cardCost(id) > g.player.energy) msg = "NOT ENOUGH ENERGY";
           else if (block) msg = block;
-          else if (playCard(g, "player", idx, t.c, t.s)) { this.refresh(); return; }
+           else if (playCard(g, "player", idx, t.c, t.s)) {
+             this.impact(t.c, 360, 80, HERO_BY_ID[SKILL_BY_ID[id]?.hero ?? "aruvi"].color);
+             this.floatText("SKILL QUEUED", 360, this.carriers[t.c]?.y ?? 0, "#7fd8ff");
+             this.floatText(`-${energyBefore - g.player.energy} ENERGY`, 64, 1090, "#7fd8ff");
+             this.refresh(); return;
+           }
         }
         this.animFrom.set(d.src.uid, pos);
       } else if (t?.kind === "slot" && t.side === "player") {
@@ -553,6 +572,7 @@ export class BattleScene extends Phaser.Scene {
       }
     }
     if (msg) this.flash(msg);
+    if (g.player.energy < energyBefore) this.floatText(`-${energyBefore - g.player.energy} ENERGY`, 64, 1090, "#7fd8ff");
     this.refresh();
   }
 
@@ -561,12 +581,12 @@ export class BattleScene extends Phaser.Scene {
     const cont = this.carriers[ci]!;
     const ring = this.add.circle(x, y, 20, color, 0).setStrokeStyle(4, color, 1);
     cont.add(ring);
-    this.tweens.add({ targets: ring, scale: 2.6, alpha: 0, duration: 340, onComplete: () => ring.destroy() });
+    this.tweens.add({ targets: ring, scale: 3.2, alpha: 0, duration: 700, onComplete: () => ring.destroy() });
     for (let k = 0; k < 8; k++) {
       const p = this.add.rectangle(x, y, 3, 10, color, 1).setRotation(Math.random() * Math.PI);
       cont.add(p);
       const a = Math.random() * Math.PI * 2, dd = 34 + Math.random() * 26;
-      this.tweens.add({ targets: p, x: x + Math.cos(a) * dd, y: y + Math.sin(a) * dd, alpha: 0, duration: 300, onComplete: () => p.destroy() });
+      this.tweens.add({ targets: p, x: x + Math.cos(a) * dd, y: y + Math.sin(a) * dd, alpha: 0, duration: 680, onComplete: () => p.destroy() });
     }
     this.cameras.main.shake(70, 0.0018);
   }
@@ -576,7 +596,7 @@ export class BattleScene extends Phaser.Scene {
     const glow = this.add.graphics();
     glow.lineStyle(3, col, 1).strokeRoundedRect(-SLOT_W / 2 - 2, -SLOT_H / 2 - 2, SLOT_W + 4, SLOT_H + 4, 8);
     card.add(glow);
-    this.tweens.add({ targets: glow, alpha: 0, duration: 600, delay: 150, onComplete: () => glow.destroy() });
+    this.tweens.add({ targets: glow, alpha: 0, duration: 950, delay: 200, onComplete: () => glow.destroy() });
   }
 
   skillFx(ci: number, name: string, color: number, id?: string) {
@@ -588,14 +608,14 @@ export class BattleScene extends Phaser.Scene {
         const a = k / 14 * Math.PI * 2;
         const p = this.add.rectangle(360, SLOT_Y, sk.anim === "slash" ? 4 : 8, sk.anim === "shards" ? 24 : 8, color).setRotation(a);
         cont.add(p);
-        this.tweens.add({ targets: p, x: 360 + Math.cos(a) * 220, y: SLOT_Y + Math.sin(a) * 70, angle: fx.drift * 3, alpha: 0, duration: 450 + k * 12, onComplete: () => p.destroy() });
+        this.tweens.add({ targets: p, x: 360 + Math.cos(a) * 220, y: SLOT_Y + Math.sin(a) * 70, angle: fx.drift * 3, alpha: 0, duration: 1000 + k * 20, onComplete: () => p.destroy() });
       }
     }
     const ring = this.add.circle(360, SLOT_Y, 40, color, 0.15).setStrokeStyle(5, color, 1);
     cont.add(ring);
-    this.tweens.add({ targets: ring, scale: 6, alpha: 0, duration: 520, onComplete: () => ring.destroy() });
+    this.tweens.add({ targets: ring, scale: 6, alpha: 0, duration: 1100, onComplete: () => ring.destroy() });
     const t = this.add.text(360, cont.y - 92, name, { fontFamily: FONT, fontSize: "34px", color: "#ffffff", fontStyle: "700", stroke: Phaser.Display.Color.IntegerToColor(color).rgba, strokeThickness: 6 }).setOrigin(0.5).setDepth(70);
-    this.tweens.add({ targets: t, y: t.y - 30, alpha: 0, delay: 500, duration: 500, onComplete: () => t.destroy() });
+    this.tweens.add({ targets: t, y: t.y - 30, alpha: 0, delay: 850, duration: 700, onComplete: () => t.destroy() });
     this.cameras.main.shake(90, 0.003);
   }
 
@@ -621,38 +641,61 @@ export class BattleScene extends Phaser.Scene {
     opponentTurn(this.g);
     beginReveal(this.g);
     this.refresh();
+    this.floatText("REVEAL PHASE", W / 2, 160, "#7fd8ff");
     const step = () => {
       const d = this.g.pending[0];
       if (!d) {
+        const handBefore = new Set(this.g.player.hand.map((c) => c.uid));
         nextTurn(this.g); this.remaining = ROUND_SECONDS;
+        for (const c of this.g.player.hand) if (!handBefore.has(c.uid)) this.animFrom.set(c.uid, { x: W - 40, y: 990 });
         this.timerText.setText(`${this.remaining}s`);
-        this.refresh(); if (this.g.phase === "over") this.showResult();
+        this.refresh();
+        if (this.g.phase === "over") this.showResult();
+        else { this.floatText(`ROUND ${this.g.turn}`, W / 2, 160, "#7fd8ff"); this.audio.play("draw"); }
         return;
       }
       const v = viewOf(d.card.id, this.tf(d.side));
       const x = d.skill ? 360 : SLOT_X[d.side][d.slot] ?? 360;
       const y = (this.carriers[d.carrier]?.y ?? 0) + SLOT_Y;
       const flip = createCard(this, v, SLOT_W, SLOT_H, { concealed: true }).setPosition(x, y).setDepth(90);
-      this.tweens.add({ targets: flip, scaleX: 0, scaleY: 1.18, duration: 180, onComplete: () => {
+      const spotlight = this.add.graphics().setDepth(85);
+      spotlight.lineStyle(3, v.color, 0.9).strokeRoundedRect(x - SLOT_W * 0.6, y - SLOT_H * 0.6, SLOT_W * 1.2, SLOT_H * 1.2, 8);
+      this.tweens.add({ targets: spotlight, alpha: 0, duration: 1600, onComplete: () => spotlight.destroy() });
+      this.tweens.add({ targets: flip, scaleX: 0, scaleY: 1.3, delay: 240, duration: 400, ease: "Sine.in", onComplete: () => {
         flip.destroy();
         const handBefore = new Set(this.g.player.hand.map((c) => c.uid));
+        const scoresBefore = this.g.carriers.map((_c, ci) => ({ player: carrierScore(this.g, ci, "player"), opponent: carrierScore(this.g, ci, "opponent") }));
         revealNext(this.g);
         for (const c of this.g.player.hand) if (!handBefore.has(c.uid)) this.animFrom.set(c.uid, { x, y });
         this.refresh();
-        const face = createCard(this, v, SLOT_W, SLOT_H, { enemy: d.side === "opponent" }).setPosition(x, y).setScale(0, 1.18).setDepth(90);
+        const face = createCard(this, v, SLOT_W, SLOT_H, { enemy: d.side === "opponent" }).setPosition(x, y).setScale(0, 1.3).setDepth(90);
         this.audio.play(d.skill ? "cast" : "reveal", v.hero);
         if (!d.skill && d.side === "player") this.audio.play("draw", v.hero);
-        this.tweens.add({ targets: face, scaleX: 1.1, scaleY: 1.1, duration: 200, onComplete: () => {
+        this.tweens.add({ targets: face, scaleX: 1.3, scaleY: 1.3, duration: 440, ease: "Sine.out", onComplete: () => {
           if (d.skill) {
             this.skillFx(d.carrier, v.name, v.color, d.card.id);
+            for (const side of ["player", "opponent"] as Side[]) {
+              const oldScore = scoresBefore[d.carrier]?.[side] ?? 0;
+              const delta = carrierScore(this.g, d.carrier, side) - oldScore;
+              if (delta) {
+                const tx = side === "player" ? 165 : 555;
+                const tether = this.add.graphics().setDepth(92);
+                tether.lineStyle(4, v.color, 0.9).lineBetween(x, y, tx, y);
+                this.tweens.add({ targets: tether, alpha: 0, duration: 1100, onComplete: () => tether.destroy() });
+                this.floatText(`${delta > 0 ? "+" : ""}${delta} POWER`, tx, y - 65, delta > 0 ? "#a0ffcb" : "#ff8892");
+              }
+            }
             this.audio.play("destroy", v.hero);
-            this.tweens.add({ targets: face, alpha: 0, scale: 0.2, angle: 25, duration: 280, onComplete: () => face.destroy() });
-          } else { this.impact(d.carrier, x, SLOT_Y, v.color); face.destroy(); }
+            this.tweens.add({ targets: face, alpha: 0, scale: 0.2, angle: 25, delay: 450, duration: 650, onComplete: () => face.destroy() });
+          } else {
+            this.impact(d.carrier, x, SLOT_Y, v.color);
+            this.tweens.add({ targets: face, scale: 1, delay: 400, duration: 350, ease: "Cubic.inOut", onComplete: () => face.destroy() });
+          }
         } });
-        this.time.delayedCall(620, step);
+        this.time.delayedCall(d.skill ? 2000 : 1550, step);
       } });
     };
-    this.time.delayedCall(200, step);
+    this.time.delayedCall(500, step);
   }
 
   showResult() {

@@ -3,6 +3,7 @@ import { HERO_BY_ID, type HeroId } from "@/game/heroes";
 import { heroArt, heroForeground, heroLogo } from "@/game/heroArt";
 import costBadge from "@/assets/ui/cost.webp";
 import powerBadge from "@/assets/ui/power.webp";
+import cardBack from "@/assets/ui/card-back.jpg";
 import { HERO_EFFECTS } from "@/game/heroEffects";
 import { heroPower } from "@/game/rules";
 import type { Tier } from "@/game/tiers";
@@ -14,7 +15,7 @@ const hex = (n: number) => `#${n.toString(16).padStart(6, "0")}`;
  * (transparent character steps slightly beyond the top/sides, never the bottom). Apex adds hero particles
  * and a hero-coloured backdrop glow. `tilt` enables gyroscope (or pointer) 3D tilt.
  */
-export function HeroCard({ id, tier, tilt = false, showStats = true, className = "" }: { id: HeroId; tier: Tier; tilt?: boolean; showStats?: boolean; className?: string }) {
+export function HeroCard({ id, tier, tilt = false, showStats = true, className = "", rotation = 0, rotating = false }: { id: HeroId; tier: Tier; tilt?: boolean; showStats?: boolean; className?: string; rotation?: number; rotating?: boolean }) {
   const h = HERO_BY_ID[id];
   const ref = useRef<HTMLDivElement>(null);
   const [rot, setRot] = useState({ x: 0, y: 0 });
@@ -45,12 +46,13 @@ export function HeroCard({ id, tier, tilt = false, showStats = true, className =
   };
 
   const upgraded = tier !== "base";
-  const style = { "--hero": hex(h.color), transform: `perspective(900px) rotateX(${rot.x}deg) rotateY(${rot.y}deg)` } as CSSProperties;
+  const style = { "--hero": hex(h.color), transform: `perspective(900px) rotateX(${rot.x}deg) rotateY(${rotation + rot.y}deg)`, transitionDuration: rotating ? "0ms" : "1000ms" } as CSSProperties;
   const fx = HERO_EFFECTS[id];
 
   return (
     <div ref={ref} onPointerMove={onPointer} onPointerLeave={() => setRot({ x: 0, y: 0 })} onClick={needPerm ? askPerm : undefined}
       className={`@container relative aspect-[3/4] transition-transform duration-150 ease-out [transform-style:preserve-3d] ${className}`} style={style}>
+      <div className="card-face absolute inset-0 [transform-style:preserve-3d]">
       {tier === "apex" && <div aria-hidden className="apex-aura pointer-events-none absolute -inset-[12%] rounded-full" />}
       <div className={`absolute inset-0 rounded-xl p-[3px] ${upgraded ? "frame-ascend" : ""}`} style={upgraded ? undefined : { background: "var(--hero)" }}>
         <div className="h-full w-full rounded-[10px] bg-background" />
@@ -66,11 +68,12 @@ export function HeroCard({ id, tier, tilt = false, showStats = true, className =
             style={{ transform: "translateZ(16px)" }} />
         </div>
       )}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-background to-transparent" />
+      <div className="pointer-events-none absolute inset-x-[3px] bottom-[3px] h-2/5 bg-gradient-to-t from-background to-transparent" />
+      <div aria-hidden className="card-bottom-rail pointer-events-none absolute inset-x-0 bottom-0 h-[3px]" />
       {tier === "apex" && (
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-visible">
-          {Array.from({ length: 10 }, (_, i) => (
-            <span key={i} className={`apex-spark apex-${fx.motif}`} style={{ left: `${8 + ((i * 37) % 84)}%`, animationDelay: `${(i * 0.37) % 3}s`, animationDuration: `${fx.speed / 1000 + (i % 3) * 0.2}s`, "--drift": `${fx.drift}px` } as CSSProperties} />
+          {Array.from({ length: 22 }, (_, i) => (
+            <span key={i} className={`apex-spark apex-${fx.motif}`} style={{ left: `${-8 + ((i * 37) % 116)}%`, animationDelay: `${-((i * 0.37) % 4)}s`, animationDuration: `${fx.speed / 1000 + 0.8 + (i % 3) * 0.2}s`, "--drift": `${fx.drift * 1.4}px` } as CSSProperties} />
           ))}
         </div>
       )}
@@ -82,6 +85,10 @@ export function HeroCard({ id, tier, tilt = false, showStats = true, className =
         </>
       )}
       {needPerm && <span className="absolute inset-x-0 -bottom-7 text-center text-xs text-muted-foreground">Tap card to enable tilt</span>}
+      </div>
+      <div className="card-face card-reverse absolute inset-0 overflow-hidden rounded-xl">
+        <img src={cardBack} width={768} height={1024} loading="lazy" alt="SCENE tactical card back" className="h-full w-full object-cover" />
+      </div>
     </div>
   );
 }

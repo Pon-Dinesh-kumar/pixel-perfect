@@ -177,15 +177,18 @@
 .badge-cost { text-shadow: 0 1px 2px var(--background); }
 .badge-power { text-shadow: 0 1px 2px var(--background); }
 .hero-frame-break { clip-path: inset(-8% -8% 0 -8%); }
+.card-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.card-reverse { transform: rotateY(180deg); }
+.card-bottom-rail { background: var(--hero); box-shadow: 0 0 8px var(--hero); }
 .apex-aura {
-  background: radial-gradient(circle, color-mix(in oklab, var(--hero) 55%, transparent), transparent 65%);
+  background: radial-gradient(ellipse, color-mix(in oklab, var(--hero) 75%, transparent), transparent 72%);
   filter: blur(8px);
   animation: apex-pulse 2.6s ease-in-out infinite;
 }
 @keyframes apex-pulse { 50% { opacity: 0.45; transform: scale(0.94); } }
 .apex-spark {
-  position: absolute; bottom: 4%; width: 4%; aspect-ratio: 1; border-radius: 9999px;
-  background: var(--hero); box-shadow: 0 0 6px 2px var(--hero);
+  position: absolute; bottom: 4%; width: 6%; aspect-ratio: 1; border-radius: 9999px;
+  background: var(--hero); box-shadow: 0 0 10px 3px var(--hero);
   animation: apex-rise 3s linear infinite; opacity: 0;
 }
 @keyframes apex-rise {
@@ -219,7 +222,7 @@
 @keyframes apex-rise {
   0% { transform: translate(0,0) rotate(0); opacity: 0; }
   15% { opacity: .85; }
-  100% { transform: translate(var(--drift, 0px),-80cqh) rotate(180deg); opacity: 0; }
+  100% { transform: translate(var(--drift, 0px),-108cqh) rotate(180deg); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .frame-ascend,.frame-apex,.apex-aura,.apex-spark { animation: none; }

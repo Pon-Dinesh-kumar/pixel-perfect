@@ -2,7 +2,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { HERO_BY_ID, isHeroId } from "@/game/heroes";
-import { HeroCard } from "@/components/HeroCard";
+import { HeroPreview } from "@/components/HeroPreview";
 import { heroPower } from "@/game/rules";
 import { skillsOf } from "@/game/skills";
 import { TIERS, TIER_LABEL, skillsUnlocked, type Tier } from "@/game/tiers";
@@ -63,8 +63,8 @@ function HeroPage() {
         <div>
           <div key={burst} className={`relative mx-auto w-4/5 pt-[16%] ${burst ? "upgrade-pop" : ""}`}>
             {burst > 0 && <div className="upgrade-burst pointer-events-none absolute inset-0 rounded-full" style={{ background: `radial-gradient(circle, ${hex(h.color)} 0%, transparent 60%)` }} />}
-            <HeroCard id={id} tier={shown} tilt />
-            {shown !== tier && TIERS.indexOf(shown) > TIERS.indexOf(tier) && <div className="absolute inset-x-0 bottom-1/3 bg-background/80 py-1 text-center font-display text-lg">PREVIEW · LOCKED</div>}
+            <HeroPreview id={id} tier={shown} />
+            {shown !== tier && TIERS.indexOf(shown) > TIERS.indexOf(tier) && <div className="mt-2 text-center font-display text-sm text-muted-foreground">PREVIEW · LOCKED</div>}
           </div>
           <div className="mt-2 grid grid-cols-3 gap-2">
             {TIERS.map((t) => (

@@ -1,4 +1,5 @@
 # SCENE completion
+- [ ] Tactical card back and full preview rotation, slower action feedback, visible bottom borders, conservative cutout repairs, stronger Apex effects; visual checks.
 - [x] Modern tactical badges, centered hero names, transparent top/side-only frame break; Base, Ascend and Apex visually checked in hero screens and battle details, plus wider-screen Apex check.
 - [x] Solid illustrated stat badges and restrained whole-art frame break.
 - [x] Individual Apex effects for all 20 heroes.
