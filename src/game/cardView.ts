@@ -9,6 +9,17 @@ import { TIER_LABEL, type Tier } from "./tiers";
 export const FONT = "Teko, Rajdhani, sans-serif";
 const GOLD = 0xffc23a;
 
+/** Phaser does not remove repeating child tweens when a card is rebuilt. */
+function cleanCardTweens(scene: Phaser.Scene, container: Phaser.GameObjects.Container) {
+  container.once("destroy", () => {
+    const clean = (object: Phaser.GameObjects.GameObject) => {
+      scene.tweens.killTweensOf(object);
+      if (object instanceof Phaser.GameObjects.Container) object.list.forEach(clean);
+    };
+    clean(container);
+  });
+}
+
 export interface CardView {
   id: string; hero: HeroId; name: string; cost: number; power: number | null; color: number; art: string; logo: string | null;
   sub: string; text: string; trigger: string; skill: boolean; ultimate: boolean; tier: Tier; effect: SkillEffect | null;
@@ -118,6 +129,7 @@ function tierFrame(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: Card
 /** Card for hand and board: art, name logo, cost and power only — no ability text (tap for details). */
 export function createCard(scene: Phaser.Scene, v: CardView, w: number, h: number, opts: { enemy?: boolean; power?: number; hidePower?: boolean; concealed?: boolean } = {}) {
   const c = scene.add.container(0, 0);
+  cleanCardTweens(scene, c);
   const r = Math.max(4, Math.round(w * 0.08));
   const accent = opts.enemy ? 0xff4a5e : v.ultimate ? GOLD : v.color;
   const b = 2;
@@ -183,6 +195,7 @@ function badges(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: CardVie
  */
 export function createDetail(scene: Phaser.Scene, v: CardView, W: number, H: number, opts: { enemy?: boolean; power?: number; note?: string | undefined } = {}) {
   const root = scene.add.container(0, 0).setDepth(500);
+  cleanCardTweens(scene, root);
   const dim = scene.add.rectangle(W / 2, H / 2, W, H, 0x050914, 0.88).setInteractive();
   root.add(dim);
   const cw = 420, ch = 600, cx = W / 2, cy = 480;

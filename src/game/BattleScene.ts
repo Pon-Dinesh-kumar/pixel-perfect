@@ -81,6 +81,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   create() {
+    this.audio = new BattleAudio();
     this.resultSent = false;
     this.carriers = []; this.cardLayers = []; this.slotFx = []; this.scoreText = []; this.laneGlow = []; this.handCards = [];
     this.animFrom.clear(); this.lastPower.clear(); this.lastScores = []; this.drag = null;
@@ -100,7 +101,7 @@ export class BattleScene extends Phaser.Scene {
       if (this.remaining <= 5) this.audio.play("tick");
       if (this.remaining === 0) { if (this.drag) this.finishDrag(null); this.endTurn(); }
     } });
-    this.events.once("shutdown", () => { this.audio.destroy(); this.detail?.close(); });
+    this.events.once("shutdown", () => { this.audio.destroy(); this.detail?.close(); this.input.removeAllListeners(); this.load.removeAllListeners(); });
     this.refresh();
     this.assets.onReady?.();
   }
