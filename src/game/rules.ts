@@ -55,7 +55,8 @@ export function shuffle<T>(arr: T[], rng: Rng): T[] {
   return a;
 }
 
-export const energyForTurn = (turn: number) => Math.min(turn, MAX_ENERGY);
+/** Energy starts at 2 (every hero costs 2+) and grows by 1 per turn, capped at MAX_ENERGY. */
+export const energyForTurn = (turn: number) => Math.min(turn + 1, MAX_ENERGY);
 export const other = (s: Side): Side => (s === "player" ? "opponent" : "player");
 export const isSkill = (id: string) => !isHeroId(id) && id in SKILL_BY_ID;
 export const heroPower = (hero: HeroId, tier: Tier) => HERO_BY_ID[hero].power + TIER_POWER[tier];
@@ -83,8 +84,17 @@ export function createGame(opts: { player?: DeckEntry[]; opponent?: DeckEntry[];
   const pd = opts.player && validDeck(opts.player) ? opts.player : randomDeck(rng);
   const od = opts.opponent && validDeck(opts.opponent) ? opts.opponent : randomDeck(rng);
   let uid = 1;
+  const order = (d: DeckEntry[]) => {
+    const a = shuffle(d, rng);
+    // guarantee a turn-1 play: a hero costing <= 2 in the opening hand
+    if (!a.slice(0, HAND_SIZE).some((e) => HERO_BY_ID[e.hero].cost <= energyForTurn(1))) {
+      const i = a.findIndex((e) => HERO_BY_ID[e.hero].cost <= energyForTurn(1));
+      if (i >= 0) { const t = a[0]!; a[0] = a[i]!; a[i] = t; }
+    }
+    return a;
+  };
   const mk = (d: DeckEntry[]): SideState => ({
-    deck: shuffle(d, rng).map((e) => ({ uid: uid++, id: e.hero })),
+    deck: order(d).map((e) => ({ uid: uid++, id: e.hero })),
     hand: [], energy: energyForTurn(1), skillUsed: [],
     tiers: Object.fromEntries(d.map((e) => [e.hero, e.tier])),
   });

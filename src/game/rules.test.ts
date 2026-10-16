@@ -41,8 +41,9 @@ describe("deck", () => {
 });
 
 describe("battle", () => {
-  it("energy equals turn number capped at 6", () => {
-    expect(energyForTurn(3)).toBe(3);
+  it("energy is turn + 1, capped at 6", () => {
+    expect(energyForTurn(1)).toBe(2);
+    expect(energyForTurn(3)).toBe(4);
     expect(energyForTurn(9)).toBe(6);
   });
 
@@ -91,6 +92,13 @@ describe("battle", () => {
     g.player.energy = 6;
     expect(playCard(g, "player", 1, 0, 0)).toBe(true);
     expect(canPlay(g, "player", 0, 0, 0)).toBe(false);
+  });
+
+  it("opening hand always has a playable hero", () => {
+    for (let k = 1; k < 30; k++) {
+      let x = k; const g = createGame({ player: DECK, rng: () => ((x = (x * 16807) % 2147483647) / 2147483647) });
+      expect(g.player.hand.some((c) => canPlay(g, "player", g.player.hand.indexOf(c), 0, 0))).toBe(true);
+    }
   });
 
   it("full match runs to a result with no duplicated cards", () => {
