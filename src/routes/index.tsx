@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import sky from "@/assets/scene-sky.jpg";
-import carrier from "@/assets/carrier.png";
+import carrier from "@/assets/carrier-stylized.png";
 import vanguard from "@/assets/card-vanguard.jpg";
 import riftdancer from "@/assets/card-riftdancer.jpg";
 import skyguard from "@/assets/card-skyguard.jpg";
@@ -38,7 +38,7 @@ function Index() {
   return (
     <main className="flex h-dvh w-full items-center justify-center bg-background">
       <h1 className="sr-only">SCENE</h1>
-      <div ref={ref} className="h-full w-full max-w-[min(100vw,56.25dvh)]" />
+      <div ref={ref} className="h-full w-full max-w-[min(100vw,56.25dvh)] touch-none select-none" onContextMenu={(e) => e.preventDefault()} />
     </main>
   );
 }
