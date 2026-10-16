@@ -1,7 +1,7 @@
 import * as Phaser from "phaser";
 import { HERO_EFFECTS } from "./heroEffects";
 import { HERO_BY_ID, isHeroId, type HeroId } from "./heroes";
-import { artKey, logoKey } from "./heroArt";
+import { artKey, foregroundKey, logoKey } from "./heroArt";
 import { SKILL_BY_ID, type SkillEffect } from "./skills";
 import { heroPower } from "./rules";
 import { TIER_LABEL, type Tier } from "./tiers";
@@ -50,6 +50,15 @@ function addArt(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: CardVie
   img.setScale(sc).setOrigin(0, 0).setPosition(x - cx * sc, y - cy * sc);
   c.add(img);
   return img;
+}
+
+/** Only transparent character pixels can leave the top/sides; the crop ends inside the bottom frame. */
+function addForeground(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: CardView, w: number, h: number) {
+  if (v.skill || v.tier === "base") return;
+  const key = foregroundKey(v.hero, v.tier);
+  if (!scene.textures.exists(key)) return;
+  const spill = h * 0.03;
+  addArt(scene, c, { ...v, art: key }, -w * 0.53, -h / 2 - spill, w * 1.06, h + spill - 3, 0);
 }
 
 /** Placeholder skill art: weapon/ability emblem by effect type, tinted in the hero colour. */
@@ -149,19 +158,20 @@ export function createCard(scene: Phaser.Scene, v: CardView, w: number, h: numbe
     c.setSize(w, h); return c;
   }
   if (v.skill) skillArt(scene, c, v, w, h);
-  else {
-    const spill = v.tier === "base" ? 0 : h * 0.025;
-    addArt(scene, c, v, -w / 2 + b - spill * 0.2, -h / 2 + b - spill, w - b * 2 + spill * 0.4, h - b * 2 + spill, 0);
-  }
+  else addArt(scene, c, v, -w / 2 + b, -h / 2 + b, w - b * 2, h - b * 2, 0);
 
   const ov = scene.add.graphics();
   ov.fillGradientStyle(0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0, 0, 0.95, 0.95).fillRect(-w / 2 + b, h * 0.05, w - b * 2, h / 2 - h * 0.05 - b);
   ov.lineStyle(b, accent, 1).strokeRoundedRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2, v.skill ? r * 2 : r);
   c.add(ov);
   tierFrame(scene, c, v, w, h, r);
+  addForeground(scene, c, v, w, h);
+  const fade = scene.add.graphics();
+  fade.fillGradientStyle(0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0, 0, 0.9, 0.9).fillRect(-w / 2 + b, h * 0.15, w - b * 2, h * 0.35 - b);
+  c.add(fade);
 
   const showPower = v.power !== null && !opts.hidePower;
-  if (v.logo && scene.textures.exists(v.logo)) addLogo(scene, c, v.logo, h / 2 - h * 0.03, w * (showPower ? 0.8 : 0.96), h * 0.24, showPower ? -w * 0.08 : 0);
+  if (v.logo && scene.textures.exists(v.logo)) addLogo(scene, c, v.logo, h / 2 - h * 0.09, w * 0.86, h * 0.22, 0);
   else {
     const name = scene.add.text(0, h / 2 - h * 0.11, v.name, { fontFamily: FONT, fontSize: `${Math.max(12, Math.round(w * 0.15))}px`, color: "#f2f5ff", fontStyle: "700", stroke: "#0a0f1c", strokeThickness: 4, align: "center", wordWrap: { width: w * 0.95 } }).setOrigin(0.5);
     if (name.width > w * 0.92) name.setScale((w * 0.92) / name.width);
@@ -173,9 +183,9 @@ export function createCard(scene: Phaser.Scene, v: CardView, w: number, h: numbe
   return c;
 }
 
-/** Cost: angled energy shard notched into the top-left. Power: shield plate at the bottom-right. */
+/** Compact tactical plates: energy top-left, power bottom-right; hero name stays centered. */
 function badges(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: CardView, w: number, h: number, big: number, enemy?: boolean, power?: number) {
-  const size = big * 1.25;
+  const size = big;
   const x = -w / 2 + size * 0.3, y = -h / 2 + size * 0.3;
   if (scene.textures.exists("badge-cost")) c.add(scene.add.image(x, y, "badge-cost").setDisplaySize(size, size));
   c.add(scene.add.text(x, y + 1, `${v.cost}`, { fontFamily: FONT, fontSize: `${Math.round(big * 0.9)}px`, color: "#ffffff", fontStyle: "700", stroke: "#0a1a40", strokeThickness: 2 }).setOrigin(0.5));
@@ -187,7 +197,7 @@ function badges(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: CardVie
     c.add(plate);
   }
   const pw = power ?? v.power;
-  const txt = enemy ? "#ffffff" : pw > v.power ? "#0b7a2e" : pw < v.power ? "#b00020" : "#1a1206";
+  const txt = enemy ? "#ffffff" : pw > v.power ? "#a0ffcb" : pw < v.power ? "#ffd0d7" : "#ffffff";
   c.add(scene.add.text(px, py + 1, `${pw}`, { fontFamily: FONT, fontSize: `${Math.round(big * 0.9)}px`, color: txt, fontStyle: "700" }).setOrigin(0.5));
 }
 
@@ -218,20 +228,22 @@ export function createDetail(scene: Phaser.Scene, v: CardView, W: number, H: num
   bg.fillStyle(0x0a0f1c, 1).fillRoundedRect(-cw / 2, -ch / 2, cw, ch, r);
   card.add(bg);
 
-  const breakOut = v.tier !== "base" && !v.skill ? 16 : 0;
   const artLayer = scene.add.container(0, 0);
   card.add(artLayer);
   if (v.skill) skillArt(scene, artLayer, v, cw, ch);
   else {
-    const img = addArt(scene, artLayer, v, -cw / 2 + 3, -ch / 2 + 3 - breakOut, cw - 6, ch - 6 + breakOut, 0.0);
-    if (img && breakOut) img.setAlpha(1);
+    addArt(scene, artLayer, v, -cw / 2 + 3, -ch / 2 + 3, cw - 6, ch - 6, 0);
   }
   const fr = scene.add.graphics();
   fr.fillGradientStyle(0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0, 0, 1, 1).fillRect(-cw / 2 + 3, 60, cw - 6, ch / 2 - 63);
   fr.lineStyle(5, accent, 1).strokeRoundedRect(-cw / 2, -ch / 2, cw, ch, r);
   card.add(fr);
   tierFrame(scene, card, v, cw, ch, r, true);
-  if (v.logo) addLogo(scene, card, v.logo, ch / 2 - 18, cw * 0.78, 140, -cw * 0.07);
+  addForeground(scene, card, v, cw, ch);
+  const fade = scene.add.graphics();
+  fade.fillGradientStyle(0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0, 0, 0.95, 0.95).fillRect(-cw / 2 + 3, ch * 0.15, cw - 6, ch * 0.35 - 3);
+  card.add(fade);
+  if (v.logo) addLogo(scene, card, v.logo, ch / 2 - ch * 0.09, cw * 0.86, ch * 0.22, 0);
   else card.add(scene.add.text(0, ch / 2 - 80, v.name, { fontFamily: FONT, fontSize: "60px", color: "#ffffff", fontStyle: "700", stroke: "#0a0f1c", strokeThickness: 6, align: "center", wordWrap: { width: cw - 40 } }).setOrigin(0.5));
   if (v.skill) card.add(scene.add.text(0, -ch / 2 + 30, "SKILL ART COMING", { fontFamily: FONT, fontSize: "22px", color: "#9fb0d8", backgroundColor: "#0a0f1ccc", padding: { x: 8, y: 0 } }).setOrigin(0.5, 0));
   badges(scene, card, v, cw, ch, 92, opts.enemy, opts.power);
@@ -247,7 +259,6 @@ export function createDetail(scene: Phaser.Scene, v: CardView, W: number, H: num
 
   const tilt = (nx: number, ny: number) => {
     card.setRotation(nx * 0.05);
-    artLayer.setPosition(nx * -14, ny * -10);
     card.setY(cy + ny * 8);
   };
   const onMove = (p: Phaser.Input.Pointer) => tilt((p.x / W - 0.5) * 2, (p.y / H - 0.5) * 2);
