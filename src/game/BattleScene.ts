@@ -3,7 +3,7 @@ import { createCard, FONT, viewOf } from "./cardView";
 import type { HeroId } from "./heroes";
 import { SKILL_BY_ID } from "./skills";
 import {
-  canMove, canTakeBack, cardCost, carrierScore, createGame, effectivePower, endPlayerTurn, isSkill, MAX_ENERGY, MAX_TURNS, moveCard,
+  canMove, canTakeBack, cardCost, energyForTurn, carrierScore, createGame, effectivePower, endPlayerTurn, isSkill, MAX_ENERGY, MAX_TURNS, moveCard,
   nextTurn, opponentPlayOne, playCard, result, skillBlock, SLOTS, takeBack, tierOf, type DeckEntry, type GameState, type Outcome, type Side,
 } from "./rules";
 
@@ -522,4 +522,4 @@ export class BattleScene extends Phaser.Scene {
   }
 }
 
-const energyForDisplay = (turn: number) => Math.min(turn, MAX_ENERGY);
+const energyForDisplay = energyForTurn;
