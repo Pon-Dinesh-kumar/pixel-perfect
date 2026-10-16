@@ -95,13 +95,13 @@ export class BattleScene extends Phaser.Scene {
     c.add(hull);
     // lane colour wash on hull (additive, restrained)
     const wash = this.add.image(SX, SY, "carrier").setOrigin(0, 0).setDisplaySize(SW, SH)
-      .setTintFill(tint).setAlpha(0.12).setBlendMode(Phaser.BlendModes.ADD);
+      .setTintFill(tint).setAlpha(0.05).setBlendMode(Phaser.BlendModes.ADD);
     c.add(wash);
 
     // deck: darken surface so cards pop, ownership line across it
     const d = this.add.graphics();
-    d.lineStyle(3, 0xff4a5e, 0.9).lineBetween(170, -3, 470, -3);
-    d.lineStyle(3, 0x4fc3ff, 0.9).lineBetween(170, 2, 470, 2);
+    d.lineStyle(3, 0xff4a5e, 0.9).lineBetween(186, -3, 466, -3);
+    d.lineStyle(3, 0x4fc3ff, 0.9).lineBetween(186, 2, 466, 2);
     // edge lights along hull in lane colour
     for (let k = 0; k < 6; k++) d.fillStyle(tint, 0.95).fillRect(170 + k * 64, SY + SH * 0.66, 22, 3);
     c.add(d);
