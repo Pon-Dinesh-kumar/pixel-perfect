@@ -2,13 +2,14 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import sky from "@/assets/scene-sky.jpg";
 import carrier from "@/assets/carrier-stylized.png";
-import { HERO_ART, artKey } from "@/game/heroArt";
+import { HERO_ART, HERO_LOGO, artKey, logoKey } from "@/game/heroArt";
 import { deckEntries, isValidDeck, loadProfile, reward, saveProfile } from "@/game/profile";
 import { isHeroId } from "@/game/heroes";
 import type { Tier } from "@/game/tiers";
 
 const ART: Record<string, string> = {};
 for (const [id, tiers] of Object.entries(HERO_ART)) for (const [t, url] of Object.entries(tiers)) if (isHeroId(id) && url) ART[artKey(id, t as Tier)] = url;
+for (const [id, url] of Object.entries(HERO_LOGO)) if (isHeroId(id)) ART[logoKey(id)] = url;
 
 export const Route = createFileRoute("/battle")({
   head: () => ({
