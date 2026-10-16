@@ -1,24 +1,37 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
+import sky from "@/assets/scene-sky.jpg";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "SCENE — Carrier Card Battler" },
+      { name: "description", content: "Play SCENE: a portrait card battler across three floating sky carriers." },
+      { property: "og:title", content: "SCENE — Carrier Card Battler" },
+      { property: "og:description", content: "Play SCENE: a portrait card battler across three floating sky carriers." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
 function Index() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let game: { destroy: (b: boolean) => void } | undefined;
+    let dead = false;
+    import("@/game/main").then(async (m) => {
+      if (dead || !ref.current) return;
+      game = await m.startGame(ref.current, sky);
+      if (dead) game.destroy(true);
+    });
+    return () => { dead = true; game?.destroy(true); };
+  }, []);
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+    <main className="flex h-dvh w-full items-center justify-center bg-background">
+      <h1 className="sr-only">SCENE</h1>
+      <div ref={ref} className="h-full w-full max-w-[min(100vw,56.25dvh)]" />
+    </main>
   );
 }
