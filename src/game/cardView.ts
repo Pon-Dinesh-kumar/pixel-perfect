@@ -1,4 +1,5 @@
 import * as Phaser from "phaser";
+import { HERO_EFFECTS } from "./heroEffects";
 import { HERO_BY_ID, isHeroId, type HeroId } from "./heroes";
 import { artKey, logoKey } from "./heroArt";
 import { SKILL_BY_ID, type SkillEffect } from "./skills";
@@ -93,21 +94,29 @@ function tierFrame(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: Card
   aura.setBlendMode(Phaser.BlendModes.ADD);
   c.add(aura);
   scene.tweens.add({ targets: aura, alpha: 0.4, duration: 1400, yoyo: true, repeat: -1 });
-  const count = big ? 18 : 5;
+  const fx = HERO_EFFECTS[v.hero];
+  const count = big ? 12 : 4;
   for (let k = 0; k < count; k++) {
-    const p = scene.add.circle(0, 0, Math.max(1.5, w * (big ? 0.012 : 0.03)), k % 3 ? v.color : 0xffffff, 1).setBlendMode(Phaser.BlendModes.ADD);
+    const p = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+    const radius = Math.max(2, w * (big ? 0.016 : 0.035));
+    const points = Array.from({ length: Math.max(3, fx.sides) }, (_, j) => ({
+      x: Math.cos(j / Math.max(3, fx.sides) * Math.PI * 2) * radius,
+      y: Math.sin(j / Math.max(3, fx.sides) * Math.PI * 2) * radius * (fx.sides === 2 ? 3 : 1),
+    }));
+    if (["chakra", "gravity", "clock", "kolam", "tide", "sonic"].includes(fx.motif)) {
+      p.lineStyle(Math.max(1, radius * 0.2), v.color).strokePoints(points, true, true);
+      if (fx.motif === "clock" || fx.motif === "kolam") p.lineBetween(-radius, 0, radius, 0).lineBetween(0, -radius, 0, radius);
+    } else p.fillStyle(v.color).fillPoints(points, true);
     c.add(p);
-    const reset = () => p.setPosition(Phaser.Math.Between(-w / 2 + 4, w / 2 - 4), h / 2 - 6).setAlpha(0);
+    const reset = () => p.setPosition(-w / 2 + 6 + (k / count) * (w - 12), h / 2 - 6).setAlpha(0.85).setRotation(k);
     reset();
-    scene.tweens.add({
-      targets: p, y: -h / 2 - (big ? 60 : 6), alpha: { from: 1, to: 0 }, x: `+=${Phaser.Math.Between(-12, 12)}`,
-      duration: Phaser.Math.Between(1600, 2800), delay: k * 220, repeat: -1, onRepeat: reset,
-    });
+    scene.tweens.add({ targets: p, y: -h / 2 - 12, x: `+=${fx.drift}`, rotation: `+=${fx.motif === "clock" ? -6.28 : 3.14}`,
+      alpha: 0, duration: fx.speed, delay: k * 190, repeat: -1, onRepeat: reset });
   }
 }
 
 /** Card for hand and board: art, name logo, cost and power only — no ability text (tap for details). */
-export function createCard(scene: Phaser.Scene, v: CardView, w: number, h: number, opts: { enemy?: boolean; power?: number; hidePower?: boolean } = {}) {
+export function createCard(scene: Phaser.Scene, v: CardView, w: number, h: number, opts: { enemy?: boolean; power?: number; hidePower?: boolean; concealed?: boolean } = {}) {
   const c = scene.add.container(0, 0);
   const r = Math.max(4, Math.round(w * 0.08));
   const accent = opts.enemy ? 0xff4a5e : v.ultimate ? GOLD : v.color;
@@ -117,6 +126,14 @@ export function createCard(scene: Phaser.Scene, v: CardView, w: number, h: numbe
   base.fillStyle(0x000000, 0.5).fillRoundedRect(-w / 2 + 2, -h / 2 + 5, w, h, r);
   base.fillStyle(0x0a0f1c, 1).fillRoundedRect(-w / 2, -h / 2, w, h, r);
   c.add(base);
+  if (opts.concealed) {
+    const back = scene.add.graphics();
+    back.fillStyle(v.color, 0.2).fillRoundedRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6, r);
+    back.lineStyle(2, v.color).strokePoints([{ x: 0, y: -h * 0.28 }, { x: w * 0.3, y: 0 }, { x: 0, y: h * 0.28 }, { x: -w * 0.3, y: 0 }], true, true);
+    c.add(back);
+    c.add(scene.add.text(0, 0, "S", { fontFamily: FONT, fontSize: `${w * 0.5}px`, color: "#f2f5ff" }).setOrigin(0.5));
+    c.setSize(w, h); return c;
+  }
   if (v.skill) skillArt(scene, c, v, w, h);
   else addArt(scene, c, v, -w / 2 + b, -h / 2 + b, w - b * 2, h - b * 2);
 
@@ -141,48 +158,20 @@ export function createCard(scene: Phaser.Scene, v: CardView, w: number, h: numbe
 
 /** Cost: angled energy shard notched into the top-left. Power: shield plate at the bottom-right. */
 function badges(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: CardView, w: number, h: number, big: number, enemy?: boolean, power?: number) {
-  const cg = scene.add.graphics();
-  const x0 = -w / 2 - big * 0.12, y0 = -h / 2 - big * 0.12, bw = big * 0.95, bh = big * 1.15;
-  const shard = [{ x: x0 + bw * 0.3, y: y0 }, { x: x0 + bw, y: y0 }, { x: x0 + bw * 0.7, y: y0 + bh }, { x: x0, y: y0 + bh }];
-  cg.fillStyle(0x000000, 0.5).fillPoints(shard.map((p) => ({ x: p.x + 2, y: p.y + 3 })), true);
-  cg.fillStyle(v.skill ? 0x7a2fff : 0x1466ff, 1).fillPoints(shard, true);
-  cg.fillStyle(0xffffff, 0.25).fillPoints([shard[0]!, shard[1]!, { x: x0 + bw * 0.9, y: y0 + bh * 0.3 }, { x: x0 + bw * 0.2, y: y0 + bh * 0.3 }], true);
-  cg.lineStyle(Math.max(1.5, big * 0.06), 0xdff2ff, 1).strokePoints(shard, true, true);
-  c.add(cg);
-  c.add(scene.add.text(x0 + bw / 2, y0 + bh / 2 + 1, `${v.cost}`, { fontFamily: FONT, fontSize: `${Math.round(big * 0.95)}px`, color: "#ffffff", fontStyle: "700", stroke: "#0a1a40", strokeThickness: Math.max(2, big * 0.08) }).setOrigin(0.5));
+  const size = big * 1.25;
+  const x = -w / 2 + size * 0.3, y = -h / 2 + size * 0.3;
+  if (scene.textures.exists("badge-cost")) c.add(scene.add.image(x, y, "badge-cost").setDisplaySize(size, size));
+  c.add(scene.add.text(x, y + 1, `${v.cost}`, { fontFamily: FONT, fontSize: `${Math.round(big * 0.9)}px`, color: "#ffffff", fontStyle: "700", stroke: "#0a1a40", strokeThickness: 2 }).setOrigin(0.5));
   if (v.power === null) return;
-  const sw = big * 1.0, shh = big * 1.15;
-  const px = w / 2 - sw / 2 + big * 0.1, py = h / 2 - shh / 2 + big * 0.1;
-  const shield = [{ x: px - sw / 2, y: py - shh / 2 }, { x: px + sw / 2, y: py - shh / 2 }, { x: px + sw / 2, y: py + shh * 0.1 }, { x: px, y: py + shh / 2 }, { x: px - sw / 2, y: py + shh * 0.1 }];
-  const pg = scene.add.graphics();
-  pg.fillStyle(0x000000, 0.5).fillPoints(shield.map((p) => ({ x: p.x + 2, y: p.y + 3 })), true);
-  pg.fillStyle(enemy ? 0xe0283f : GOLD, 1).fillPoints(shield, true);
-  pg.lineStyle(Math.max(1.5, big * 0.06), 0xffffff, 1).strokePoints(shield, true, true);
-  c.add(pg);
+  const px = w / 2 - size * 0.3, py = h / 2 - size * 0.3;
+  if (scene.textures.exists("badge-power")) {
+    const plate = scene.add.image(px, py, "badge-power").setDisplaySize(size, size);
+    if (enemy) plate.setTint(0xff7070);
+    c.add(plate);
+  }
   const pw = power ?? v.power;
   const txt = enemy ? "#ffffff" : pw > v.power ? "#0b7a2e" : pw < v.power ? "#b00020" : "#1a1206";
-  c.add(scene.add.text(px, py - shh * 0.04, `${pw}`, { fontFamily: FONT, fontSize: `${Math.round(big * 0.95)}px`, color: txt, fontStyle: "700" }).setOrigin(0.5));
-}
-
-/** Soft-edged mask texture: card body + a wide upper-body shaped break above the frame. */
-function breakMask(scene: Phaser.Scene, key: string, cw: number, ch: number, breakOut: number, r: number) {
-  if (scene.textures.exists(key)) return key;
-  const tw = cw + 40, th = ch + breakOut + 20;
-  const tex = scene.textures.createCanvas(key, tw, th)!;
-  const ctx = tex.getContext();
-  const ox = 20, oy = breakOut + 10;
-  ctx.fillStyle = "#fff";
-  ctx.beginPath(); ctx.roundRect(ox + 3, oy + 3, cw - 6, ch - 6, r - 2); ctx.fill();
-  if (breakOut) {
-    // head + shoulders: wide soft ellipse reaching well into the card so the break blends naturally
-    const gx = tw / 2, gy = oy + ch * 0.18;
-    const grad = ctx.createRadialGradient(gx, gy, 0, gx, gy, 1);
-    grad.addColorStop(0, "rgba(255,255,255,1)"); grad.addColorStop(0.62, "rgba(255,255,255,1)"); grad.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.save(); ctx.translate(gx, gy); ctx.scale(cw * 0.46, ch * 0.18 + breakOut); ctx.translate(-gx, -gy);
-    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(gx, gy, 1, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-  }
-  tex.refresh();
-  return key;
+  c.add(scene.add.text(px, py + 1, `${pw}`, { fontFamily: FONT, fontSize: `${Math.round(big * 0.9)}px`, color: txt, fontStyle: "700" }).setOrigin(0.5));
 }
 
 /**
@@ -211,18 +200,13 @@ export function createDetail(scene: Phaser.Scene, v: CardView, W: number, H: num
   bg.fillStyle(0x0a0f1c, 1).fillRoundedRect(-cw / 2, -ch / 2, cw, ch, r);
   card.add(bg);
 
-  const breakOut = v.tier !== "base" && !v.skill ? (v.tier === "apex" ? 130 : 90) : 0;
+  const breakOut = v.tier !== "base" && !v.skill ? 16 : 0;
   const artLayer = scene.add.container(0, 0);
   card.add(artLayer);
   if (v.skill) skillArt(scene, artLayer, v, cw, ch);
   else {
     const img = addArt(scene, artLayer, v, -cw / 2 + 3, -ch / 2 + 3 - breakOut, cw - 6, ch - 6 + breakOut, 0.0);
-    if (img) {
-      const key = breakMask(scene, `bmask-${breakOut}`, cw, ch, breakOut, r);
-      const m = scene.add.image(cx, cy - ch / 2 - breakOut - 10, key).setOrigin(0.5, 0).setVisible(false);
-      img.setMask(m.createBitmapMask());
-      root.add(m);
-    }
+    if (img && breakOut) img.setAlpha(1);
   }
   const fr = scene.add.graphics();
   fr.fillGradientStyle(0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0, 0, 1, 1).fillRect(-cw / 2 + 3, 60, cw - 6, ch / 2 - 63);
@@ -238,8 +222,9 @@ export function createDetail(scene: Phaser.Scene, v: CardView, W: number, H: num
   const py = cy + ch / 2 + 40;
   const col = Phaser.Display.Color.IntegerToColor(accent).rgba;
   root.add(scene.add.text(W / 2, py, `${v.sub}${v.skill ? "" : ` · ${TIER_LABEL[v.tier]}`}`, { fontFamily: FONT, fontSize: "36px", color: col, fontStyle: "700" }).setOrigin(0.5, 0));
-  root.add(scene.add.text(W / 2, py + 44, v.text, { fontFamily: FONT, fontSize: "40px", color: "#ffffff", align: "center", wordWrap: { width: W - 100 } }).setOrigin(0.5, 0));
-  root.add(scene.add.text(W / 2, py + 100, opts.note ? `${v.trigger}\n${opts.note}` : v.trigger, { fontFamily: FONT, fontSize: "28px", color: "#9fb0d8", align: "center", wordWrap: { width: W - 100 } }).setOrigin(0.5, 0));
+  const description = scene.add.text(W / 2, py + 44, v.text, { fontFamily: FONT, fontSize: "40px", color: "#ffffff", align: "center", wordWrap: { width: W - 100 } }).setOrigin(0.5, 0);
+  root.add(description);
+  root.add(scene.add.text(W / 2, py + 52 + description.height, opts.note ? `${v.trigger}\n${opts.note}` : v.trigger, { fontFamily: FONT, fontSize: "28px", color: "#9fb0d8", align: "center", wordWrap: { width: W - 100 } }).setOrigin(0.5, 0));
   root.add(scene.add.text(W / 2, H - 60, "TAP TO CLOSE", { fontFamily: FONT, fontSize: "26px", color: "#6f80a8" }).setOrigin(0.5));
 
   const tilt = (nx: number, ny: number) => {

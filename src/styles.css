@@ -174,17 +174,8 @@
 @media (orientation: landscape) and (max-height: 520px) {
   .rotate-lock { display: flex; }
 }
-.badge-cost {
-  clip-path: polygon(30% 0, 100% 0, 70% 100%, 0 100%);
-  background: linear-gradient(160deg, oklch(0.75 0.17 245), oklch(0.5 0.22 262));
-  filter: drop-shadow(0 2px 2px oklch(0 0 0 / 60%));
-  text-shadow: 0 2px 0 oklch(0.25 0.1 262);
-}
-.badge-power {
-  clip-path: polygon(0 0, 100% 0, 100% 58%, 50% 100%, 0 58%);
-  background: linear-gradient(180deg, oklch(0.9 0.14 90), var(--primary));
-  filter: drop-shadow(0 2px 2px oklch(0 0 0 / 60%));
-}
+.badge-cost { text-shadow: 0 1px 2px var(--background); }
+.badge-power { text-shadow: 0 1px 1px var(--primary); }
 .apex-aura {
   background: radial-gradient(circle, color-mix(in oklab, var(--hero) 55%, transparent), transparent 65%);
   filter: blur(8px);
@@ -203,3 +194,33 @@
 }
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+.apex-frost { clip-path: polygon(50% 0,100% 100%,0 80%); border-radius: 0; }
+.apex-solar { clip-path: polygon(50% 0,60% 35%,100% 50%,60% 65%,50% 100%,40% 65%,0 50%,40% 35%); }
+.apex-shadow { width: 2%; height: 12%; border-radius: 0; opacity: .5; }
+.apex-stone { clip-path: polygon(20% 0,80% 10%,100% 70%,40% 100%,0 50%); width: 6%; }
+.apex-lightning { height: 14%; clip-path: polygon(60% 0,20% 55%,60% 50%,30% 100%,100% 35%,55% 40%); }
+.apex-ricochet { width: 2%; height: 9%; border-radius: 0; }
+.apex-chakra,.apex-gravity,.apex-clock,.apex-kolam,.apex-tide,.apex-sonic { background: transparent; border: 1px solid var(--hero); box-shadow: none; width: 10%; }
+.apex-gravity { width: 16%; animation-direction: reverse; }
+.apex-clock { border-style: dashed; }
+.apex-claw { width: 2%; height: 9%; transform: rotate(35deg); }
+.apex-nano { border-radius: 0; clip-path: polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); }
+.apex-kolam { border-radius: 0; transform: rotate(45deg); }
+.apex-flame { height: 7%; border-radius: 70% 10% 60% 40%; }
+.apex-tide { width: 15%; aspect-ratio: 3; }
+.apex-sonic { width: 20%; }
+.apex-neon { width: 2%; height: 15%; border-radius: 0; }
+.apex-prism { width: 7%; clip-path: polygon(50% 0,100% 100%,0 100%); }
+.apex-mirror { border-radius: 0; background: transparent; border: 1px solid var(--hero); }
+.apex-feather { width: 3%; height: 10%; border-radius: 90% 0; }
+.apex-petal { width: 5%; border-radius: 80% 0 80% 40%; }
+@keyframes apex-rise {
+  0% { transform: translate(0,0) rotate(0); opacity: 0; }
+  15% { opacity: .85; }
+  100% { transform: translate(var(--drift, 0px),-80cqh) rotate(180deg); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .frame-ascend,.frame-apex,.apex-aura,.apex-spark { animation: none; }
+  .apex-spark { opacity: .45; }
+}
