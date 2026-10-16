@@ -1,6 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import sky from "@/assets/scene-sky.jpg";
+import carrier from "@/assets/carrier.png";
+import vanguard from "@/assets/card-vanguard.jpg";
+import riftdancer from "@/assets/card-riftdancer.jpg";
+import skyguard from "@/assets/card-skyguard.jpg";
+import aurora from "@/assets/card-aurora.jpg";
+
+const ASSETS = { sky, carrier, art: { vanguard, riftdancer, skyguard, aurora } };
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -23,7 +30,7 @@ function Index() {
     let dead = false;
     import("@/game/main").then(async (m) => {
       if (dead || !ref.current) return;
-      game = await m.startGame(ref.current, sky);
+      game = await m.startGame(ref.current, ASSETS);
       if (dead) game.destroy(true);
     });
     return () => { dead = true; game?.destroy(true); };
