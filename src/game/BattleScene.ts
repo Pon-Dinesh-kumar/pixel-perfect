@@ -1,7 +1,7 @@
 import * as Phaser from "phaser";
 import { BattleAudio } from "./audio";
 import { HERO_EFFECTS } from "./heroEffects";
-import { artKey, logoKey } from "./heroArt";
+import { artKey, foregroundKey, logoKey } from "./heroArt";
 import { createCard, createDetail, FONT, viewOf, type CardView } from "./cardView";
 import type { HeroId } from "./heroes";
 import { SKILL_BY_ID } from "./skills";
@@ -75,7 +75,11 @@ export class BattleScene extends Phaser.Scene {
     this.load.image("carrier", this.assets.carrier);
     const keys = new Set(["badge-cost", "badge-power"]);
     for (const side of ["player", "opponent"] as Side[]) for (const id of Object.keys(this.g[side].tiers)) {
-      if (isHeroId(id)) { keys.add(artKey(id, tierOf(this.g, side, id))); keys.add(logoKey(id)); }
+      if (isHeroId(id)) {
+        const tier = tierOf(this.g, side, id);
+        keys.add(artKey(id, tier)); keys.add(logoKey(id));
+        if (tier !== "base") keys.add(foregroundKey(id, tier));
+      }
     }
     for (const key of keys) { const url = this.assets.art[key]; if (url && !this.textures.exists(key)) this.load.image(key, url); }
   }
