@@ -1,8 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useSyncExternalStore, type ReactNode } from "react";
 import { HERO_BY_ID, type HeroId } from "@/game/heroes";
-import { heroArt } from "@/game/heroArt";
-import { heroPower } from "@/game/rules";
+import { HeroCard } from "@/components/HeroCard";
 import { loadProfile, subscribe, type Profile } from "@/game/profile";
 import { TIER_LABEL, type Tier } from "@/game/tiers";
 
@@ -15,7 +14,7 @@ export const hex = (n: number) => `#${n.toString(16).padStart(6, "0")}`;
 
 export function Screen({ title, back = "/", right, children }: { title: string; back?: "/" | "/collection"; right?: ReactNode; children: ReactNode }) {
   return (
-    <main className="mx-auto min-h-dvh w-full max-w-3xl bg-background px-4 pb-16 pt-4 text-foreground">
+    <main className="mx-auto min-h-dvh w-full max-w-md bg-background px-4 pb-16 pt-4 text-foreground">
       <header className="mb-4 flex items-center justify-between gap-3">
         <Link to={back} className="rounded-md border border-border px-3 py-1 font-display text-xl tracking-wide text-muted-foreground hover:text-foreground">‹ BACK</Link>
         <h1 className="font-display text-4xl font-semibold tracking-wider">{title}</h1>
@@ -38,15 +37,12 @@ export function TierBadge({ tier }: { tier: Tier }) {
 export function HeroTile({ id, tier, inDeck, onClick }: { id: HeroId; tier: Tier; inDeck?: boolean; onClick?: () => void }) {
   const h = HERO_BY_ID[id];
   const body = (
-    <div className="relative aspect-[3/4] overflow-hidden rounded-lg border-2 bg-card" style={{ borderColor: hex(h.color) }}>
-      <img src={heroArt(id, tier)} alt={h.name} loading="lazy" className="absolute inset-0 h-full w-full object-cover object-top" />
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-background via-background/80 to-transparent px-2 pb-1 pt-6">
-        <div className="font-display text-xl leading-none tracking-wide">{h.name}</div>
-        <div className="flex items-center justify-between text-xs text-muted-foreground"><span>{h.archetype}</span><TierBadge tier={tier} /></div>
+    <div className="pt-[14%]">
+      <HeroCard id={id} tier={tier} />
+      <div className="mt-1 flex items-center justify-between gap-1 text-xs text-muted-foreground">
+        <span className="truncate">{h.archetype}</span><TierBadge tier={tier} />
       </div>
-      <span className="absolute left-1 top-1 rounded bg-secondary px-1.5 font-display text-lg leading-tight">{h.cost}</span>
-      <span className="absolute right-1 top-1 rounded bg-primary px-1.5 font-display text-lg leading-tight text-primary-foreground">{heroPower(id, tier)}</span>
-      {inDeck && <span className="absolute left-1 top-8 rounded bg-accent px-1 font-display text-xs text-accent-foreground">IN DECK</span>}
+      {inDeck && <div className="mt-0.5 text-center font-display text-xs tracking-wider text-accent">IN DECK</div>}
     </div>
   );
   if (onClick) return <button type="button" onClick={onClick} className="block w-full text-left">{body}</button>;

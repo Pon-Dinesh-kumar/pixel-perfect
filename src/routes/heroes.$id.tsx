@@ -2,12 +2,12 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { HERO_BY_ID, isHeroId } from "@/game/heroes";
-import { heroArt } from "@/game/heroArt";
+import { HeroCard } from "@/components/HeroCard";
 import { heroPower } from "@/game/rules";
 import { skillsOf } from "@/game/skills";
 import { TIERS, TIER_LABEL, skillsUnlocked, type Tier } from "@/game/tiers";
 import { saveProfile, upgrade, upgradeCost } from "@/game/profile";
-import { hex, Loading, Screen, Shards, TierBadge, useProfile } from "@/components/scene";
+import { hex, Loading, Screen, Shards, useProfile } from "@/components/scene";
 
 export const Route = createFileRoute("/heroes/$id")({
   loader: ({ params }) => {
@@ -35,6 +35,7 @@ function HeroPage() {
   const { id } = Route.useLoaderData();
   const p = useProfile();
   const [view, setView] = useState<Tier | null>(null);
+  const [burst, setBurst] = useState(0);
   if (!p) return <Loading />;
   const h = HERO_BY_ID[id];
   const tier = p.tiers[id];
@@ -46,7 +47,7 @@ function HeroPage() {
   const doUpgrade = () => {
     const n = upgrade(p, id);
     if (!n) { toast.error("Not enough shards"); return; }
-    saveProfile(n); setView(null);
+    saveProfile(n); setView(null); setBurst((b) => b + 1);
     toast.success(`${h.name} reached ${TIER_LABEL[n.tiers[id]]}`);
   };
   const toggleDeck = () => {
@@ -58,12 +59,12 @@ function HeroPage() {
 
   return (
     <Screen title={h.name} back="/collection" right={<Shards n={p.shards} />}>
-      <div className="grid gap-5 sm:grid-cols-[1fr_1.1fr]">
+      <div className="grid gap-5">
         <div>
-          <div className="relative aspect-[3/4] overflow-hidden rounded-xl border-2 bg-card" style={{ borderColor: hex(h.color) }}>
-            <img src={heroArt(id, shown)} alt={`${h.name} ${TIER_LABEL[shown]}`} className="h-full w-full object-cover" />
-            <div className="absolute left-2 top-2"><TierBadge tier={shown} /></div>
-            {shown !== tier && TIERS.indexOf(shown) > TIERS.indexOf(tier) && <div className="absolute inset-x-0 bottom-0 bg-background/80 py-1 text-center font-display text-lg">PREVIEW · LOCKED</div>}
+          <div key={burst} className={`relative mx-auto w-4/5 pt-[16%] ${burst ? "upgrade-pop" : ""}`}>
+            {burst > 0 && <div className="upgrade-burst pointer-events-none absolute inset-0 rounded-full" style={{ background: `radial-gradient(circle, ${hex(h.color)} 0%, transparent 60%)` }} />}
+            <HeroCard id={id} tier={shown} tilt />
+            {shown !== tier && TIERS.indexOf(shown) > TIERS.indexOf(tier) && <div className="absolute inset-x-0 bottom-1/3 bg-background/80 py-1 text-center font-display text-lg">PREVIEW · LOCKED</div>}
           </div>
           <div className="mt-2 grid grid-cols-3 gap-2">
             {TIERS.map((t) => (

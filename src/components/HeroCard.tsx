@@ -46,7 +46,7 @@ export function HeroCard({ id, tier, tilt = false, showStats = true, className =
 
   return (
     <div ref={ref} onPointerMove={onPointer} onPointerLeave={() => setRot({ x: 0, y: 0 })} onClick={needPerm ? askPerm : undefined}
-      className={`relative aspect-[3/4] transition-transform duration-150 ease-out [transform-style:preserve-3d] ${className}`} style={style}>
+      className={`@container relative aspect-[3/4] transition-transform duration-150 ease-out [transform-style:preserve-3d] ${className}`} style={style}>
       {/* frame */}
       <div className={`absolute inset-0 rounded-xl p-[3px] ${tier === "apex" ? "frame-apex" : tier === "ascend" ? "frame-ascend" : ""}`}
         style={tier === "base" ? { background: "var(--hero)" } : undefined}>
@@ -72,9 +72,9 @@ export function HeroCard({ id, tier, tilt = false, showStats = true, className =
       <img src={heroLogo(id)} alt={h.name} className="absolute inset-x-[4%] bottom-[2%] mx-auto max-h-[24%] w-[92%] object-contain drop-shadow-lg" style={{ transform: "translateZ(40px)" }} />
       {showStats && (
         <>
-          <span className="absolute left-[3%] top-[2%] flex aspect-square w-[24%] items-center justify-center rounded-full border-2 border-foreground bg-secondary font-display text-[min(7vw,2.2rem)] leading-none" style={{ transform: "translateZ(40px)" }}>{h.cost}</span>
+          <span className="absolute left-[3%] top-[2%] flex aspect-square w-[24%] items-center justify-center rounded-full border-2 border-foreground bg-secondary font-display text-[15cqw] leading-none" style={{ transform: "translateZ(40px)" }}>{h.cost}</span>
           <span className="absolute right-[3%] top-[2%] flex aspect-square w-[24%] rotate-45 items-center justify-center rounded-md border-2 border-foreground bg-primary" style={{ transform: "translateZ(40px) rotate(45deg)" }}>
-            <span className="-rotate-45 font-display text-[min(7vw,2.2rem)] leading-none text-primary-foreground">{heroPower(id, tier)}</span>
+            <span className="-rotate-45 font-display text-[15cqw] leading-none text-primary-foreground">{heroPower(id, tier)}</span>
           </span>
         </>
       )}
