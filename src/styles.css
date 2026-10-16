@@ -143,3 +143,34 @@
     color: var(--color-foreground);
   }
 }
+
+/* ---------- SCENE card effects ---------- */
+@property --spin {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes frame-spin { to { --spin: 360deg; } }
+@keyframes upgrade-burst {
+  0% { transform: scale(0.4); opacity: 0.9; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+@keyframes upgrade-pop {
+  0% { transform: scale(1); filter: brightness(1); }
+  30% { transform: scale(1.08); filter: brightness(2.2); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+.frame-ascend {
+  background: conic-gradient(from var(--spin), var(--hero), transparent 25%, var(--hero) 50%, transparent 75%, var(--hero));
+  animation: frame-spin 4s linear infinite;
+}
+.frame-apex {
+  background: conic-gradient(from var(--spin), var(--primary), var(--hero) 20%, transparent 35%, var(--primary) 50%, var(--hero) 70%, transparent 85%, var(--primary));
+  animation: frame-spin 2.4s linear infinite;
+}
+.upgrade-pop { animation: upgrade-pop 0.9s ease-out; }
+.upgrade-burst { animation: upgrade-burst 0.9s ease-out forwards; }
+.rotate-lock { display: none; }
+@media (orientation: landscape) and (max-height: 520px) {
+  .rotate-lock { display: flex; }
+}

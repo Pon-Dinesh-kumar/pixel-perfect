@@ -78,7 +78,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+      { name: "screen-orientation", content: "portrait" },
+      { name: "theme-color", content: "#0a0f1c" },
       { title: "SCENE" },
       { name: "description", content: "SCENE — carrier card battler prototype." },
     ],
@@ -117,6 +119,9 @@ function RootComponent() {
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <Toaster theme="dark" position="top-center" />
+      <div className="rotate-lock fixed inset-0 z-[100] flex-col items-center justify-center gap-2 bg-background text-center font-display text-3xl tracking-widest text-foreground">
+        <span className="text-6xl">⟲</span>ROTATE TO PORTRAIT
+      </div>
     </QueryClientProvider>
   );
 }

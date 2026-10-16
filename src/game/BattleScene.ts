@@ -1,5 +1,5 @@
 import * as Phaser from "phaser";
-import { createCard, FONT, viewOf } from "./cardView";
+import { createCard, createDetail, FONT, viewOf, type CardView } from "./cardView";
 import type { HeroId } from "./heroes";
 import { SKILL_BY_ID } from "./skills";
 import {
@@ -249,10 +249,11 @@ export class BattleScene extends Phaser.Scene {
           const p = c[side][s];
           if (!p) continue;
           const power = effectivePower(this.g, i, side, s);
-          const card = createCard(this, viewOf(p.id, this.tf(side)), SLOT_W - 4, SLOT_H - 4, { enemy: side === "opponent", power, compact: true });
+          const card = createCard(this, viewOf(p.id, this.tf(side)), SLOT_W - 4, SLOT_H - 4, { enemy: side === "opponent", power });
           const x = SLOT_X[side][s]!, y = SLOT_Y;
           card.setPosition(x, y);
           layer.add(card);
+          this.tappable(card, viewOf(p.id, this.tf(side)), { enemy: side === "opponent", power, note: p.mod ? `Skill effects: ${p.mod > 0 ? "+" : ""}${p.mod}` : undefined });
           if (side === "player" && canMove(this.g, i, s)) {
             const ring = this.add.graphics();
             ring.lineStyle(2, 0xbff0ff, 0.9).strokeRoundedRect(-SLOT_W / 2, -SLOT_H / 2, SLOT_W, SLOT_H, 7);
@@ -282,12 +283,13 @@ export class BattleScene extends Phaser.Scene {
     this.handLayer.removeAll(true);
     const n = this.g.player.hand.length, w = handW(n), hh = Math.round(w * (HAND_H / HAND_W));
     this.g.player.hand.forEach((inst, idx) => {
-      const card = createCard(this, viewOf(inst.id, this.tf("player")), w, hh);
+      const card = createCard(this, viewOf(inst.id, this.tf("player")), w, hh, { hidePower: true });
       const afford = cardCost(inst.id) <= this.g.player.energy && this.g.phase === "player";
       const x = handX(n, idx), y = HAND_Y + (HAND_H - hh) / 2;
       card.setPosition(x, y).setAlpha(afford ? 1 : 0.55);
       card.setInteractive({ useHandCursor: true, draggable: this.g.phase === "player" });
       card.setData("src", { kind: "hand", idx, uid: inst.uid } satisfies DragSrc);
+      this.tappable(card, viewOf(inst.id, this.tf("player")), {});
       card.on("pointerover", () => !this.drag && card.setY(y - 10));
       card.on("pointerout", () => !this.drag && card.setY(y));
       this.handLayer.add(card);
@@ -338,10 +340,25 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
+  // ---------- tap = details (drag is the only way to place) ----------
+  dragged = false;
+  detail: { close: () => void } | null = null;
+  tappable(card: Phaser.GameObjects.Container, v: CardView, o: { enemy?: boolean; power?: number; note?: string | undefined }) {
+    if (!card.input) card.setInteractive({ useHandCursor: true });
+    card.on("pointerdown", () => { this.dragged = false; });
+    card.on("pointerup", () => {
+      if (this.dragged || this.drag || this.detail) return;
+      const d = createDetail(this, v, W, H, o);
+      this.detail = { close: d.close };
+      d.root.once("destroy", () => { this.detail = null; });
+    });
+  }
+
   // ---------- drag & drop ----------
   setupDrag() {
     this.input.on("dragstart", (p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Container) => {
-      if (this.drag || this.g.phase !== "player") return;
+      if (this.drag || this.detail || this.g.phase !== "player") return;
+      this.dragged = true;
       const src = obj.getData("src") as DragSrc | undefined;
       if (!src) return;
       const m = obj.getWorldTransformMatrix();
