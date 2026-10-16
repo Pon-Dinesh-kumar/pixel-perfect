@@ -2,70 +2,70 @@ import Phaser from "phaser";
 import { CARDS, type CardId } from "./cards";
 
 export const FONT = "Teko, Rajdhani, sans-serif";
+/** Texture key for a card's illustration. Swap the loaded image to drop in final art. */
+export const artKey = (id: CardId) => `art-${id}`;
 
-/** Reusable card component. Width/height in px; origin is centre. */
+/** Reusable card component. Origin is centre. */
 export function createCard(scene: Phaser.Scene, id: CardId, w: number, h: number, opts: { enemy?: boolean } = {}) {
   const def = CARDS[id];
   const c = scene.add.container(0, 0);
-  const g = scene.add.graphics();
-  const r = Math.round(w * 0.08);
-  const frame = opts.enemy ? 0xff3b4e : def.glow;
+  const r = Math.max(4, Math.round(w * 0.07));
+  const accent = opts.enemy ? 0xff4a5e : def.glow;
+  const b = 2; // frame thickness
+  const artH = Math.round(h * 0.76);
 
-  // drop shadow
-  g.fillStyle(0x000000, 0.45).fillRoundedRect(-w / 2 + 3, -h / 2 + 6, w, h, r);
-  // outer frame
-  g.fillStyle(frame, 1).fillRoundedRect(-w / 2, -h / 2, w, h, r);
-  // art panel
-  g.fillStyle(0x0b1222, 1).fillRoundedRect(-w / 2 + 3, -h / 2 + 3, w - 6, h - 6, r - 2);
-  g.fillStyle(def.color, 0.85).fillRoundedRect(-w / 2 + 3, -h / 2 + 3, w - 6, h * 0.62, { tl: r - 2, tr: r - 2, bl: 0, br: 0 });
-  // diagonal slash for graphic energy
-  g.fillStyle(0xffffff, 0.12).fillTriangle(-w / 2 + 3, -h / 2 + h * 0.5, w / 2 - 3, -h / 2 + 3, w / 2 - 3, -h / 2 + h * 0.2);
-  g.fillStyle(0x000000, 0.25).fillTriangle(-w / 2 + 3, -h / 2 + h * 0.65, w / 2 - 3, -h / 2 + h * 0.3, w / 2 - 3, -h / 2 + h * 0.65);
-  c.add(g);
+  const base = scene.add.graphics();
+  base.fillStyle(0x000000, 0.5).fillRoundedRect(-w / 2 + 2, -h / 2 + 5, w, h, r);
+  base.fillStyle(0x0a0f1c, 1).fillRoundedRect(-w / 2, -h / 2, w, h, r);
+  c.add(base);
 
-  // icon (placeholder for future hero art)
-  const ig = scene.add.graphics();
-  const s = w * 0.2;
-  const iy = -h / 2 + h * 0.33;
-  ig.fillStyle(0xffffff, 0.95).lineStyle(2, 0x0b1222, 0.6);
-  if (def.icon === "shield") {
-    ig.fillPoints([{ x: -s, y: iy - s }, { x: s, y: iy - s }, { x: s, y: iy }, { x: 0, y: iy + s * 1.2 }, { x: -s, y: iy }], true);
-  } else if (def.icon === "blade") {
-    ig.fillPoints([{ x: -s * 0.3, y: iy + s }, { x: s * 0.9, y: iy - s * 1.1 }, { x: s * 0.3, y: iy + s }], true);
-    ig.fillPoints([{ x: s * 0.3, y: iy + s }, { x: -s * 0.9, y: iy - s * 1.1 }, { x: -s * 0.3, y: iy + s }], true);
-  } else if (def.icon === "wing") {
-    ig.fillPoints([{ x: 0, y: iy + s }, { x: -s * 1.2, y: iy - s }, { x: -s * 0.2, y: iy - s * 0.2 }, { x: 0, y: iy - s * 1.2 }, { x: s * 0.2, y: iy - s * 0.2 }, { x: s * 1.2, y: iy - s }], true);
-  } else {
-    const pts = [];
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2 - Math.PI / 2;
-      const rr = i % 2 ? s * 0.45 : s * 1.2;
-      pts.push({ x: Math.cos(a) * rr, y: iy + Math.sin(a) * rr });
-    }
-    ig.fillPoints(pts, true);
-  }
-  c.add(ig);
+  // illustration, cropped to cover the art window
+  const img = scene.add.image(0, 0, artKey(id));
+  const tw = img.width, th = img.height;
+  const aw = w - b * 2, ah = artH - b;
+  const cropH = Math.min(th, tw * (ah / aw));
+  const cropW = cropH * (aw / ah);
+  const cx = (tw - cropW) / 2, cy = th * 0.04;
+  img.setCrop(cx, cy, cropW, cropH);
+  const sc = aw / cropW;
+  img.setScale(sc).setOrigin(0, 0);
+  img.setPosition(-w / 2 + b - cx * sc, -h / 2 + b - cy * sc);
+  c.add(img);
 
-  const big = Math.round(w * 0.3);
-  const name = scene.add.text(0, h / 2 - h * 0.25, def.name, {
-    fontFamily: FONT, fontSize: `${Math.round(w * 0.17)}px`, color: "#ffffff", fontStyle: "600", align: "center",
+  // bottom shade + name plate
+  const ov = scene.add.graphics();
+  ov.fillGradientStyle(0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0, 0, 0.95, 0.95).fillRect(-w / 2 + b, -h / 2 + artH * 0.55, aw, artH * 0.45);
+  ov.fillStyle(0x0a0f1c, 1).fillRect(-w / 2 + b, -h / 2 + artH, aw, h - artH - b);
+  ov.fillStyle(accent, 1).fillRect(-w / 2 + b, -h / 2 + artH - 1, aw, 2);
+  // frame
+  ov.lineStyle(b, accent, 1).strokeRoundedRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2, r);
+  ov.lineStyle(1, 0xffffff, 0.25).strokeRoundedRect(-w / 2 + b + 1, -h / 2 + b + 1, w - b * 2 - 2, h - b * 2 - 2, r - 2);
+  c.add(ov);
+
+  const fs = Math.max(11, Math.round(w * 0.15));
+  const name = scene.add.text(-w * 0.04, -h / 2 + artH + (h - artH) / 2 + 1, def.name, {
+    fontFamily: FONT, fontSize: `${fs}px`, color: "#f2f5ff", fontStyle: "600",
   }).setOrigin(0.5);
-  if (name.width > w - 8) name.setScale((w - 8) / name.width);
+  const maxNameW = w * 0.62;
+  if (name.width > maxNameW) name.setScale(maxNameW / name.width);
   c.add(name);
 
-  // cost badge
-  const cb = scene.add.graphics();
-  cb.fillStyle(0x1f6fff, 1).lineStyle(2, 0xffffff, 1);
-  cb.fillCircle(-w / 2 + big * 0.45, -h / 2 + big * 0.45, big * 0.48).strokeCircle(-w / 2 + big * 0.45, -h / 2 + big * 0.45, big * 0.48);
-  c.add(cb);
-  c.add(scene.add.text(-w / 2 + big * 0.45, -h / 2 + big * 0.5, `${def.cost}`, { fontFamily: FONT, fontSize: `${big}px`, color: "#ffffff", fontStyle: "700" }).setOrigin(0.5));
+  // cost hexagon (upper-left)
+  const big = Math.round(w * 0.28);
+  const hx = -w / 2 + big * 0.42, hy = -h / 2 + big * 0.42, hr = big * 0.5;
+  const cg = scene.add.graphics();
+  const hex = Array.from({ length: 6 }, (_, k) => ({ x: hx + Math.cos((k / 6) * Math.PI * 2) * hr, y: hy + Math.sin((k / 6) * Math.PI * 2) * hr }));
+  cg.fillStyle(0x1b6bff, 1).fillPoints(hex, true).lineStyle(2, 0xdff2ff, 1).strokePoints(hex, true, true);
+  c.add(cg);
+  c.add(scene.add.text(hx, hy + 2, `${def.cost}`, { fontFamily: FONT, fontSize: `${big}px`, color: "#ffffff", fontStyle: "700" }).setOrigin(0.5));
 
-  // power badge
-  const pb = scene.add.graphics();
-  pb.fillStyle(opts.enemy ? 0xd8233a : 0xffc23a, 1).lineStyle(2, 0xffffff, 1);
-  const px = w / 2 - big * 0.45, py = h / 2 - big * 0.45;
-  pb.fillRoundedRect(px - big * 0.48, py - big * 0.48, big * 0.96, big * 0.96, 4).strokeRoundedRect(px - big * 0.48, py - big * 0.48, big * 0.96, big * 0.96, 4);
-  c.add(pb);
+  // power badge (lower-right)
+  const px = w / 2 - big * 0.42, py = h / 2 - big * 0.42, ps = big * 0.46;
+  const pg = scene.add.graphics();
+  const pcol = opts.enemy ? 0xe0283f : 0xffc23a;
+  const dia = [{ x: px, y: py - ps }, { x: px + ps, y: py }, { x: px, y: py + ps }, { x: px - ps, y: py }];
+  pg.fillStyle(pcol, 1).fillPoints(dia, true).lineStyle(2, 0xffffff, 1).strokePoints(dia, true, true);
+  c.add(pg);
   c.add(scene.add.text(px, py + 2, `${def.power}`, { fontFamily: FONT, fontSize: `${big}px`, color: opts.enemy ? "#ffffff" : "#1a1206", fontStyle: "700" }).setOrigin(0.5));
 
   c.setSize(w, h);
