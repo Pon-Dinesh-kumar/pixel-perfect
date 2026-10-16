@@ -1,4 +1,5 @@
 # SCENE completion
+- [ ] Modern tactical badges, centered hero names, transparent top/side-only frame break; visually verify Base, Ascend and Apex.
 - [x] Solid illustrated stat badges and restrained whole-art frame break.
 - [x] Individual Apex effects for all 20 heroes.
 - [x] Deferred deployment-order reveals, next-round skills, round timer, regression tests.
