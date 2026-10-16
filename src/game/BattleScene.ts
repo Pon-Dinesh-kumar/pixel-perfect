@@ -283,7 +283,7 @@ export class BattleScene extends Phaser.Scene {
     this.handLayer.removeAll(true);
     const n = this.g.player.hand.length, w = handW(n), hh = Math.round(w * (HAND_H / HAND_W));
     this.g.player.hand.forEach((inst, idx) => {
-      const card = createCard(this, viewOf(inst.id, this.tf("player")), w, hh);
+      const card = createCard(this, viewOf(inst.id, this.tf("player")), w, hh, { hidePower: true });
       const afford = cardCost(inst.id) <= this.g.player.energy && this.g.phase === "player";
       const x = handX(n, idx), y = HAND_Y + (HAND_H - hh) / 2;
       card.setPosition(x, y).setAlpha(afford ? 1 : 0.55);

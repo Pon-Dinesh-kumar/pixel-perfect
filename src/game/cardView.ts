@@ -70,7 +70,7 @@ function tierFrame(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: Card
 }
 
 /** Card for hand and board: art, name logo, cost and power only — no ability text (tap for details). */
-export function createCard(scene: Phaser.Scene, v: CardView, w: number, h: number, opts: { enemy?: boolean; power?: number } = {}) {
+export function createCard(scene: Phaser.Scene, v: CardView, w: number, h: number, opts: { enemy?: boolean; power?: number; hidePower?: boolean } = {}) {
   const c = scene.add.container(0, 0);
   const r = Math.max(4, Math.round(w * 0.08));
   const accent = opts.enemy ? 0xff4a5e : v.ultimate ? GOLD : v.color;
@@ -101,7 +101,7 @@ export function createCard(scene: Phaser.Scene, v: CardView, w: number, h: numbe
   }
 
   const big = Math.round(w * 0.3);
-  badges(scene, c, v, w, h, big, opts.enemy, opts.power);
+  badges(scene, c, v.power !== null && opts.hidePower ? { ...v, power: null } : v, w, h, big, opts.enemy, opts.power);
   c.setSize(w, h);
   return c;
 }
