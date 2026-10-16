@@ -128,7 +128,7 @@ function badges(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: CardVie
  * Marvel Snap-style detail view: large card with frame-break art (Ascend/Apex), name logo,
  * full ability text, gyroscope/pointer tilt parallax. Tap anywhere to close.
  */
-export function createDetail(scene: Phaser.Scene, v: CardView, W: number, H: number, opts: { enemy?: boolean; power?: number; note?: string } = {}) {
+export function createDetail(scene: Phaser.Scene, v: CardView, W: number, H: number, opts: { enemy?: boolean; power?: number; note?: string | undefined } = {}) {
   const root = scene.add.container(0, 0).setDepth(500);
   const dim = scene.add.rectangle(W / 2, H / 2, W, H, 0x050914, 0.86).setInteractive();
   root.add(dim);

@@ -343,7 +343,7 @@ export class BattleScene extends Phaser.Scene {
   // ---------- tap = details (drag is the only way to place) ----------
   dragged = false;
   detail: { close: () => void } | null = null;
-  tappable(card: Phaser.GameObjects.Container, v: CardView, o: { enemy?: boolean; power?: number; note?: string }) {
+  tappable(card: Phaser.GameObjects.Container, v: CardView, o: { enemy?: boolean; power?: number; note?: string | undefined }) {
     if (!card.input) card.setInteractive({ useHandCursor: true });
     card.on("pointerdown", () => { this.dragged = false; });
     card.on("pointerup", () => {
