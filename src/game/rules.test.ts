@@ -99,10 +99,10 @@ describe("battle", () => {
   it("ultimate skills work on any carrier", () => {
     const g = game();
     g.player.energy = 6;
-    setHand(g, ["kavin", "aruvi-s3"]); // CHRONOBREAK not needed; aruvi ultimate buffAll
+    setHand(g, ["kavin", "aruvi-ult"]); // CHRONOBREAK not needed; aruvi ultimate buffAll
     playCard(g, "player", 0, 1, 0); // kavin on carrier 1, aruvi absent
     g.player.energy = 6;
-    const i = g.player.hand.findIndex((c) => c.id === "aruvi-s3");
+    const i = g.player.hand.findIndex((c) => c.id === "aruvi-ult");
     expect(canPlay(g, "player", i, 1, 0)).toBe(true);
   });
 
