@@ -482,11 +482,12 @@ export class BattleScene extends Phaser.Scene {
     if (k === this.peek) return;
     this.peek = k;
     this.handCards.forEach(({ card, pos }, i) => {
+      if (card.parentContainer !== this.handLayer) return;
       const up = i === k;
       if (up) this.handLayer.bringToTop(card);
       this.tweens.add({ targets: card, y: up ? pos.y - 46 : pos.y, rotation: up ? 0 : pos.rot, scale: up ? 1.22 : 1, duration: 120, ease: "Quad.out" });
     });
-    if (k < 0) this.handCards.forEach(({ card }, i) => this.handLayer.moveTo(card, i));
+    if (k < 0) this.handCards.forEach(({ card }, i) => { if (card.parentContainer === this.handLayer) this.handLayer.moveTo(card, i); });
   }
 
   drawHighlights() {
