@@ -24,9 +24,13 @@ const CARRIER_Y = [270, 565, 860];
 const SLOT_X: Record<Side, number[]> = { player: [70, 166, 262], opponent: [458, 554, 650] };
 const SLOT_Y = -24;
 const SLOT_W = 90, SLOT_H = 122;
-const HAND_Y = 1185, HAND_W = 118, HAND_H = 178;
-const HAND_CX = 352, HAND_SPAN = 500;
-const HAND_ZONE = { x0: 100, x1: 600, y0: 1068 };
+const HAND_Y = 1090, HAND_W = 118, HAND_H = 178;
+const HAND_CX = 346, HAND_SPAN = 380;
+const HAND_ZONE = { x0: 150, x1: 560, y0: 990 };
+const ENERGY_POS = { x: 84, y: 1160 };
+const END_POS = { x: 632, y: 1160 };
+const DECK_POS = { x: 566, y: 1150 };
+const CRIMSON = 0xd8233a;
 const LANE_TINT = [0x5fd4ff, 0x7f9dff, 0xff6a5e];
 const HUD_BG = 0x0a1020;
 const CYAN = 0x4fc3ff, CORAL = 0xff5a64, GOLD = 0xffc23a;
@@ -48,6 +52,9 @@ export class BattleScene extends Phaser.Scene {
   handGlow!: Phaser.GameObjects.Graphics;
   energyText!: Phaser.GameObjects.Text;
   energyRing!: Phaser.GameObjects.Graphics;
+  deckGfx!: Phaser.GameObjects.Graphics;
+  deckText!: Phaser.GameObjects.Text;
+  lastEnergy: number | undefined;
   turnText!: Phaser.GameObjects.Text;
   statusText!: Phaser.GameObjects.Text;
   endBtn!: Phaser.GameObjects.Container;
@@ -60,7 +67,7 @@ export class BattleScene extends Phaser.Scene {
   lastScores: number[] = [];
   resultSent = false;
   tf = (side: Side) => (h: HeroId) => tierOf(this.g, side, h);
-  drag: { src: DragSrc; obj: Phaser.GameObjects.Container; ox: number; oy: number; hover: DropTarget } | null = null;
+  drag: { src: DragSrc; obj: Phaser.GameObjects.Container; ox: number; oy: number; hover: DropTarget; manual?: boolean } | null = null;
 
   remaining = ROUND_SECONDS;
   timerText!: Phaser.GameObjects.Text;
@@ -244,32 +251,79 @@ export class BattleScene extends Phaser.Scene {
   }
 
   drawBottomHud() {
+    // Tactical rail: dark translucent plate, soft top fade, cyan glow left, red glow right.
     const g = this.add.graphics().setDepth(40);
-    g.fillGradientStyle(HUD_BG, HUD_BG, HUD_BG, HUD_BG, 0.65, 0.65, 0.98, 0.98).fillRect(0, 1064, W, 216);
-    g.fillStyle(CYAN, 0.8).fillRect(0, 1062, W, 2);
+    g.fillGradientStyle(HUD_BG, HUD_BG, HUD_BG, HUD_BG, 0, 0, 0.55, 0.55).fillRect(0, 960, W, 80);
+    g.fillGradientStyle(HUD_BG, HUD_BG, HUD_BG, HUD_BG, 0.55, 0.55, 0.92, 0.92).fillRect(0, 1040, W, 240);
+    g.fillGradientStyle(CYAN, CYAN, CYAN, CYAN, 0.16, 0, 0.1, 0).fillRect(0, 1040, 190, 240);
+    g.fillGradientStyle(CRIMSON, CRIMSON, CRIMSON, CRIMSON, 0, 0.14, 0, 0.08).fillRect(W - 190, 1040, 190, 240);
+    g.fillStyle(CYAN, 0.35).fillRect(0, 1038, W, 2);
+    g.fillStyle(0xffffff, 0.06).fillRect(0, 1042, W, 1);
     this.handGlow = this.add.graphics().setDepth(41);
     this.energyRing = this.add.graphics().setDepth(41);
-    this.energyText = this.add.text(64, 1158, "", { fontFamily: FONT, fontSize: "40px", color: "#ffffff", fontStyle: "700" }).setOrigin(0.5).setDepth(42);
-    this.add.text(64, 1222, "ENERGY", { fontFamily: FONT, fontSize: "18px", color: "#7fd8ff", fontStyle: "600" }).setOrigin(0.5).setDepth(42);
+    this.deckGfx = this.add.graphics().setDepth(41);
+    this.energyText = this.add.text(ENERGY_POS.x, ENERGY_POS.y, "", { fontFamily: FONT, fontSize: "38px", color: "#ffffff", fontStyle: "700" }).setOrigin(0.5).setDepth(42);
+    this.add.text(ENERGY_POS.x, ENERGY_POS.y + 56, "ENERGY", { fontFamily: FONT, fontSize: "17px", color: "#7fd8ff", fontStyle: "600" }).setOrigin(0.5).setDepth(42);
+    this.deckText = this.add.text(DECK_POS.x, DECK_POS.y + 28, "", { fontFamily: FONT, fontSize: "22px", color: "#bfeaff", fontStyle: "700" }).setOrigin(0.5).setDepth(42);
 
-    const b = this.add.container(656, 1170).setDepth(45);
+    // End Turn: crimson angled plate.
+    const b = this.add.container(END_POS.x, END_POS.y).setDepth(45);
     const bg = this.add.graphics();
-    bg.fillStyle(0x000000, 0.45).fillCircle(3, 6, 56);
-    bg.fillStyle(0x8a5a00, 1).fillCircle(0, 4, 56);
-    bg.fillStyle(GOLD, 1).fillCircle(0, 0, 54);
-    bg.fillStyle(0xffe08a, 0.8).fillEllipse(0, -26, 70, 22);
-    bg.lineStyle(3, 0xfff1c4, 0.9).strokeCircle(0, 0, 54);
+    const plate = [{ x: -62, y: -34 }, { x: 44, y: -34 }, { x: 62, y: 0 }, { x: 44, y: 34 }, { x: -62, y: 34 }, { x: -44, y: 0 }];
+    bg.fillStyle(0x000000, 0.4).fillPoints(plate.map((p) => ({ x: p.x + 3, y: p.y + 5 })), true);
+    bg.fillStyle(0x5a0d18, 1).fillPoints(plate.map((p) => ({ x: p.x, y: p.y + 4 })), true);
+    bg.fillStyle(CRIMSON, 1).fillPoints(plate, true);
+    bg.fillStyle(0xff7a86, 0.5).fillPoints([{ x: -56, y: -28 }, { x: 40, y: -28 }, { x: 52, y: -6 }, { x: -46, y: -6 }], true);
+    bg.lineStyle(2, 0xffb3ba, 0.85).strokePoints(plate, true, true);
     b.add(bg);
-    const halo = this.add.circle(0, 0, 60, GOLD, 0).setStrokeStyle(3, GOLD, 0.8);
+    const halo = this.add.graphics();
+    halo.lineStyle(2, CRIMSON, 0.7).strokePoints(plate.map((p) => ({ x: p.x * 1.18, y: p.y * 1.3 })), true, true);
     b.addAt(halo, 0);
-    this.tweens.add({ targets: halo, scale: 1.25, alpha: 0, duration: 1200, repeat: -1 });
-    this.endLabel = this.add.text(0, 2, "END\nTURN", { fontFamily: FONT, fontSize: "32px", color: "#1a1206", fontStyle: "700", align: "center", lineSpacing: -12 }).setOrigin(0.5);
+    this.tweens.add({ targets: halo, scale: 1.08, alpha: 0, duration: 1200, repeat: -1 });
+    this.endLabel = this.add.text(-2, 1, "END TURN", { fontFamily: FONT, fontSize: "30px", color: "#ffffff", fontStyle: "700" }).setOrigin(0.5);
     b.add(this.endLabel);
-    b.setSize(112, 112).setInteractive({ useHandCursor: true });
-    b.on("pointerdown", () => { if (this.g.phase === "player") b.setScale(0.93).setY(1174); });
-    b.on("pointerup", () => { b.setScale(1).setY(1170); this.endTurn(); });
-    b.on("pointerout", () => b.setScale(1).setY(1170));
+    b.setSize(124, 68).setInteractive({ useHandCursor: true });
+    b.on("pointerdown", () => { if (this.g.phase === "player") b.setScale(0.92); });
+    b.on("pointerup", () => { b.setScale(1); if (!this.dragged) this.endTurn(); });
+    b.on("pointerout", () => b.setScale(1));
     this.endBtn = b;
+  }
+
+  /** Cyan angular energy gauge with per-point ticks and a change pulse. */
+  drawEnergy() {
+    const e = this.g.player.energy, max = energyForDisplay(this.g.turn);
+    const { x, y } = ENERGY_POS;
+    const ring = this.energyRing;
+    ring.clear();
+    ring.fillStyle(0x081426, 0.95).fillCircle(x, y, 42);
+    ring.lineStyle(2, CYAN, 0.45).strokeCircle(x, y, 46);
+    ring.lineStyle(7, 0x1a2c4e, 1).strokeCircle(x, y, 36);
+    if (e > 0) {
+      ring.lineStyle(7, CYAN, 1).beginPath()
+        .arc(x, y, 36, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * Math.min(e, max)) / Math.max(max, 1)).strokePath();
+    }
+    for (let k = 0; k < max; k++) {
+      const a = -Math.PI / 2 + (Math.PI * 2 * k) / Math.max(max, 1);
+      ring.fillStyle(k < e ? 0xbfeaff : 0x223355, 1).fillCircle(x + Math.cos(a) * 36, y + Math.sin(a) * 36, 2.5);
+    }
+    this.energyText.setText(`${e}/${max}`);
+    if (this.lastEnergy !== undefined && this.lastEnergy !== e) {
+      this.tweens.add({ targets: this.energyText, scale: 1.25, duration: 130, yoyo: true });
+      const pulse = this.add.circle(x, y, 42, CYAN, 0).setStrokeStyle(3, CYAN, 0.9).setDepth(41);
+      this.tweens.add({ targets: pulse, scale: 1.5, alpha: 0, duration: 500, onComplete: () => pulse.destroy() });
+    }
+    this.lastEnergy = e;
+    // Deck indicator: stacked-card glyph + remaining count.
+    const d = this.deckGfx;
+    d.clear();
+    const dx = DECK_POS.x, dy = DECK_POS.y;
+    d.fillStyle(0x0d1a36, 0.95).fillRoundedRect(dx - 26, dy - 34, 52, 76, 8);
+    d.lineStyle(1.5, 0x3a5a8a, 0.8).strokeRoundedRect(dx - 26, dy - 34, 52, 76, 8);
+    d.fillStyle(0x16264a, 1).fillRoundedRect(dx - 14, dy - 26, 28, 38, 4);
+    d.fillStyle(0x1d3462, 1).fillRoundedRect(dx - 11, dy - 22, 28, 38, 4);
+    d.fillStyle(0x24427a, 1).fillRoundedRect(dx - 8, dy - 18, 28, 38, 4);
+    d.lineStyle(1.5, CYAN, 0.7).strokeRoundedRect(dx - 8, dy - 18, 28, 38, 4);
+    this.deckText.setText(`${this.g.player.deck.length}`);
   }
 
   // ---------- state → view ----------
@@ -297,18 +351,10 @@ export class BattleScene extends Phaser.Scene {
     this.totals.p.setText(`POWER ${pt}`);
     this.totals.o.setText(`POWER ${ot}`);
 
-    const e = g.player.energy, max = energyForDisplay(g.turn);
-    this.energyRing.clear();
-    this.energyRing.fillStyle(0x0d2550, 1).fillCircle(64, 1158, 50).lineStyle(2, CYAN, 0.5).strokeCircle(64, 1158, 56);
-    this.energyRing.lineStyle(8, 0x223355, 1).strokeCircle(64, 1158, 44);
-    if (e > 0) {
-      this.energyRing.lineStyle(8, CYAN, 1).beginPath()
-        .arc(64, 1158, 44, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * Math.min(e, max)) / Math.max(max, 1)).strokePath();
-    }
-    this.energyText.setText(`${e}/${max}`);
+    this.drawEnergy();
     const active = g.phase === "player";
     this.endBtn.setAlpha(active ? 1 : 0.45);
-    this.endLabel.setText(active ? "END\nTURN" : g.phase === "over" ? "DONE" : "LOCKED");
+    this.endLabel.setText(active ? "END TURN" : g.phase === "over" ? "DONE" : "LOCKED");
 
     this.drawBoard();
     this.drawHand();
@@ -386,9 +432,16 @@ export class BattleScene extends Phaser.Scene {
       const card = createCard(this, viewOf(inst.id, this.tf("player")), w, hh, { hidePower: true });
       const afford = cardCost(inst.id) <= this.g.player.energy && this.g.phase === "player";
       card.setPosition(p.x, p.y).setRotation(p.rot).setAlpha(afford ? 1 : 0.55);
-      card.setInteractive({ useHandCursor: true, draggable: this.g.phase === "player" });
+      card.setInteractive({ useHandCursor: true });
       card.setData("src", { kind: "hand", idx, uid: inst.uid } satisfies DragSrc);
-      this.tappable(card, viewOf(inst.id, this.tf("player")), {});
+      card.setData("handCard", true);
+      card.setData("view", viewOf(inst.id, this.tf("player")));
+      // unaffordable: restrained dim + muted outline
+      if (!afford && this.g.phase === "player") {
+        const dim = this.add.graphics();
+        dim.lineStyle(2, 0x5a6a8a, 0.7).strokeRoundedRect(-w / 2, -hh / 2, w, hh, 8);
+        card.add(dim);
+      }
       if (!isHeroId(inst.id) && items[k]!.group !== items[k - 1]?.group) {
         const cnt = items.filter((it) => it.group === items[k]!.group).length;
         if (cnt > 1) {
@@ -412,17 +465,29 @@ export class BattleScene extends Phaser.Scene {
     });
   }
 
+  /** Topmost hand card whose bounds contain the world point (respects fan stacking). */
+  handCardAt(x: number, y: number): number {
+    for (let i = this.handCards.length - 1; i >= 0; i--) {
+      const { card } = this.handCards[i]!;
+      const m = card.getWorldTransformMatrix();
+      const inv = m.applyInverse(x, y);
+      if (Math.abs(inv.x) <= card.width / 2 && Math.abs(inv.y) <= card.height / 2) return i;
+    }
+    return -1;
+  }
+
   /** Finger-slide peek: the card under the pointer lifts and grows; the rest settle. */
   setPeek(x: number | null) {
     const k = x === null ? -1 : nearestIndex(this.handCards.map((h) => h.pos), x);
     if (k === this.peek) return;
     this.peek = k;
     this.handCards.forEach(({ card, pos }, i) => {
+      if (card.parentContainer !== this.handLayer) return;
       const up = i === k;
       if (up) this.handLayer.bringToTop(card);
       this.tweens.add({ targets: card, y: up ? pos.y - 46 : pos.y, rotation: up ? 0 : pos.rot, scale: up ? 1.22 : 1, duration: 120, ease: "Quad.out" });
     });
-    if (k < 0) this.handCards.forEach(({ card }, i) => this.handLayer.moveTo(card, i));
+    if (k < 0) this.handCards.forEach(({ card }, i) => { if (card.parentContainer === this.handLayer) this.handLayer.moveTo(card, i); });
   }
 
   drawHighlights() {
@@ -457,8 +522,8 @@ export class BattleScene extends Phaser.Scene {
     this.handGlow.clear();
     if (d?.src.kind === "board") {
       const hov = d.hover?.kind === "hand";
-      this.handGlow.fillStyle(CYAN, hov ? 0.22 : 0.1).fillRoundedRect(HAND_ZONE.x0, HAND_ZONE.y0, HAND_ZONE.x1 - HAND_ZONE.x0, 200, 14);
-      this.handGlow.lineStyle(2, CYAN, hov ? 1 : 0.6).strokeRoundedRect(HAND_ZONE.x0, HAND_ZONE.y0, HAND_ZONE.x1 - HAND_ZONE.x0, 200, 14);
+      this.handGlow.fillStyle(CYAN, hov ? 0.22 : 0.1).fillRoundedRect(HAND_ZONE.x0, HAND_ZONE.y0, HAND_ZONE.x1 - HAND_ZONE.x0, H - HAND_ZONE.y0, 14);
+      this.handGlow.lineStyle(2, CYAN, hov ? 1 : 0.6).strokeRoundedRect(HAND_ZONE.x0, HAND_ZONE.y0, HAND_ZONE.x1 - HAND_ZONE.x0, H - HAND_ZONE.y0, 14);
     }
   }
 
@@ -477,32 +542,78 @@ export class BattleScene extends Phaser.Scene {
   }
 
   // ---------- drag & drop ----------
+  /** Hand touch in progress: resolves to a tap (detail) or a deliberate drag. */
+  pendingHand: { i: number; x: number; y: number } | null = null;
+
+  beginDrag(obj: Phaser.GameObjects.Container, p: Phaser.Input.Pointer) {
+    const src = obj.getData("src") as DragSrc | undefined;
+    if (!src) return;
+    this.dragged = true;
+    const m = obj.getWorldTransformMatrix();
+    const wx = m.tx, wy = m.ty;
+    obj.parentContainer?.remove(obj);
+    this.add.existing(obj);
+    obj.setPosition(wx, wy).setRotation(0).setDepth(300).setScale(src.kind === "hand" ? 1.08 : 1.2).setAlpha(1);
+    this.audio.play("draw");
+    this.drag = { src, obj, ox: wx - p.worldX, oy: wy - p.worldY, hover: null, manual: src.kind === "hand" };
+    this.setPeek(null);
+    this.drawHighlights();
+  }
+
+  /** Shared drag-move logic for both Phaser-dragged (board) and manual (hand) drags. */
+  moveDrag(p: Phaser.Input.Pointer) {
+    const d = this.drag;
+    if (!d) return;
+    d.obj.setPosition(p.worldX + d.ox, p.worldY + d.oy);
+    const t = this.targetAt(p.worldX, p.worldY);
+    const same = JSON.stringify(t) === JSON.stringify(d.hover);
+    d.hover = t;
+    if (!same) this.drawHighlights();
+  }
+
   setupDrag() {
+    // Deterministic hand hit testing: the topmost card under the finger wins.
+    this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
+      this.pendingHand = null;
+      this.dragged = false;
+      if (this.g.phase !== "player" || this.detail || this.drag) return;
+      if (p.worldY < HAND_ZONE.y0) return;
+      const i = this.handCardAt(p.worldX, p.worldY);
+      if (i >= 0) this.pendingHand = { i, x: p.worldX, y: p.worldY };
+    });
+    this.input.on("pointerup", (p: Phaser.Input.Pointer) => {
+      if (this.drag?.manual) { this.finishDrag(this.targetAt(p.worldX, p.worldY)); this.pendingHand = null; return; }
+      const ph = this.pendingHand;
+      this.pendingHand = null;
+      if (!ph || this.dragged || this.drag || this.detail) return;
+      if (Math.hypot(p.worldX - ph.x, p.worldY - ph.y) > 12) return;
+      const hc = this.handCards[ph.i];
+      if (!hc) return;
+      const d = createDetail(this, hc.card.getData("view") as CardView, W, H, {});
+      this.detail = { close: d.close };
+      d.root.once("destroy", () => { this.detail = null; });
+    });
     this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
-      if (this.drag || this.detail) return;
-      this.setPeek(p.y >= HAND_ZONE.y0 && p.x >= HAND_ZONE.x0 - 40 && p.x <= HAND_ZONE.x1 + 20 ? p.x : null);
+      if (this.drag) { if (this.drag.manual) this.moveDrag(p); return; }
+      if (this.detail) return;
+      if (this.pendingHand) {
+        const ph = this.pendingHand;
+        if (p.worldY < HAND_ZONE.y0 - 30 || Math.hypot(p.worldX - ph.x, p.worldY - ph.y) > 14) {
+          this.pendingHand = null;
+          const hc = this.handCards[ph.i];
+          if (hc) this.beginDrag(hc.card, p);
+          return;
+        }
+      }
+      this.setPeek(p.worldY >= HAND_ZONE.y0 && p.worldX >= HAND_ZONE.x0 - 40 && p.worldX <= HAND_ZONE.x1 + 20 ? p.worldX : null);
     });
     this.input.on("dragstart", (p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Container) => {
       if (this.drag || this.detail || this.g.phase !== "player") return;
-      this.dragged = true;
-      const src = obj.getData("src") as DragSrc | undefined;
-      if (!src) return;
-      const m = obj.getWorldTransformMatrix();
-      const wx = m.tx, wy = m.ty;
-      obj.parentContainer?.remove(obj);
-      this.add.existing(obj);
-      obj.setPosition(wx, wy).setDepth(300).setScale(src.kind === "hand" ? 1.08 : 1.2).setAlpha(1);
-      this.audio.play("draw");
-      this.drag = { src, obj, ox: wx - p.worldX, oy: wy - p.worldY, hover: null };
-      this.drawHighlights();
+      this.beginDrag(obj, p);
     });
     this.input.on("drag", (p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Container) => {
-      if (!this.drag || this.drag.obj !== obj) return;
-      obj.setPosition(p.worldX + this.drag.ox, p.worldY + this.drag.oy);
-      const t = this.targetAt(p.worldX, p.worldY);
-      const same = JSON.stringify(t) === JSON.stringify(this.drag.hover);
-      this.drag.hover = t;
-      if (!same) this.drawHighlights();
+      if (!this.drag || this.drag.obj !== obj || this.drag.manual) return;
+      this.moveDrag(p);
     });
     this.input.on("dragend", (p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Container) => {
       if (!this.drag || this.drag.obj !== obj) return;
@@ -544,7 +655,7 @@ export class BattleScene extends Phaser.Scene {
            else if (playCard(g, "player", idx, t.c, t.s)) {
              this.impact(t.c, 360, 80, HERO_BY_ID[SKILL_BY_ID[id]?.hero ?? "aruvi"].color);
              this.floatText("SKILL QUEUED", 360, this.carriers[t.c]?.y ?? 0, "#7fd8ff");
-             this.floatText(`-${energyBefore - g.player.energy} ENERGY`, 64, 1090, "#7fd8ff");
+             this.floatText(`-${energyBefore - g.player.energy} ENERGY`, ENERGY_POS.x, ENERGY_POS.y - 70, "#7fd8ff");
              this.refresh(); return;
            }
         }
@@ -561,7 +672,7 @@ export class BattleScene extends Phaser.Scene {
         const cost = g.carriers[c]!.player[s]!.cost;
         takeBack(g, c, s);
         this.animFrom.set(uid, pos);
-        this.floatText(`+${cost} ENERGY`, 64, 1090, "#7fd8ff");
+        this.floatText(`+${cost} ENERGY`, ENERGY_POS.x, ENERGY_POS.y - 70, "#7fd8ff");
       } else if (t?.kind === "slot" && t.side === "player" && moveCard(g, c, s, t.c, t.s)) {
         this.animFrom.set(uid, { ...pos, impact: true });
       } else {
@@ -572,7 +683,7 @@ export class BattleScene extends Phaser.Scene {
       }
     }
     if (msg) this.flash(msg);
-    if (g.player.energy < energyBefore) this.floatText(`-${energyBefore - g.player.energy} ENERGY`, 64, 1090, "#7fd8ff");
+    if (g.player.energy < energyBefore) this.floatText(`-${energyBefore - g.player.energy} ENERGY`, ENERGY_POS.x, ENERGY_POS.y - 70, "#7fd8ff");
     this.refresh();
   }
 
