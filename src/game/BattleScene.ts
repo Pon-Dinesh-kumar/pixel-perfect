@@ -654,7 +654,7 @@ export class BattleScene extends Phaser.Scene {
            else if (playCard(g, "player", idx, t.c, t.s)) {
              this.impact(t.c, 360, 80, HERO_BY_ID[SKILL_BY_ID[id]?.hero ?? "aruvi"].color);
              this.floatText("SKILL QUEUED", 360, this.carriers[t.c]?.y ?? 0, "#7fd8ff");
-             this.floatText(`-${energyBefore - g.player.energy} ENERGY`, 64, 1090, "#7fd8ff");
+             this.floatText(`-${energyBefore - g.player.energy} ENERGY`, ENERGY_POS.x, ENERGY_POS.y - 70, "#7fd8ff");
              this.refresh(); return;
            }
         }
@@ -671,7 +671,7 @@ export class BattleScene extends Phaser.Scene {
         const cost = g.carriers[c]!.player[s]!.cost;
         takeBack(g, c, s);
         this.animFrom.set(uid, pos);
-        this.floatText(`+${cost} ENERGY`, 64, 1090, "#7fd8ff");
+        this.floatText(`+${cost} ENERGY`, ENERGY_POS.x, ENERGY_POS.y - 70, "#7fd8ff");
       } else if (t?.kind === "slot" && t.side === "player" && moveCard(g, c, s, t.c, t.s)) {
         this.animFrom.set(uid, { ...pos, impact: true });
       } else {
@@ -682,7 +682,7 @@ export class BattleScene extends Phaser.Scene {
       }
     }
     if (msg) this.flash(msg);
-    if (g.player.energy < energyBefore) this.floatText(`-${energyBefore - g.player.energy} ENERGY`, 64, 1090, "#7fd8ff");
+    if (g.player.energy < energyBefore) this.floatText(`-${energyBefore - g.player.energy} ENERGY`, ENERGY_POS.x, ENERGY_POS.y - 70, "#7fd8ff");
     this.refresh();
   }
 
