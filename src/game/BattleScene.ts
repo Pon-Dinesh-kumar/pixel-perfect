@@ -521,8 +521,8 @@ export class BattleScene extends Phaser.Scene {
     this.handGlow.clear();
     if (d?.src.kind === "board") {
       const hov = d.hover?.kind === "hand";
-      this.handGlow.fillStyle(CYAN, hov ? 0.22 : 0.1).fillRoundedRect(HAND_ZONE.x0, HAND_ZONE.y0, HAND_ZONE.x1 - HAND_ZONE.x0, 200, 14);
-      this.handGlow.lineStyle(2, CYAN, hov ? 1 : 0.6).strokeRoundedRect(HAND_ZONE.x0, HAND_ZONE.y0, HAND_ZONE.x1 - HAND_ZONE.x0, 200, 14);
+      this.handGlow.fillStyle(CYAN, hov ? 0.22 : 0.1).fillRoundedRect(HAND_ZONE.x0, HAND_ZONE.y0, HAND_ZONE.x1 - HAND_ZONE.x0, H - HAND_ZONE.y0, 14);
+      this.handGlow.lineStyle(2, CYAN, hov ? 1 : 0.6).strokeRoundedRect(HAND_ZONE.x0, HAND_ZONE.y0, HAND_ZONE.x1 - HAND_ZONE.x0, H - HAND_ZONE.y0, 14);
     }
   }
 
@@ -611,12 +611,8 @@ export class BattleScene extends Phaser.Scene {
       this.beginDrag(obj, p);
     });
     this.input.on("drag", (p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Container) => {
-      if (!this.drag || this.drag.obj !== obj) return;
-      obj.setPosition(p.worldX + this.drag.ox, p.worldY + this.drag.oy);
-      const t = this.targetAt(p.worldX, p.worldY);
-      const same = JSON.stringify(t) === JSON.stringify(this.drag.hover);
-      this.drag.hover = t;
-      if (!same) this.drawHighlights();
+      if (!this.drag || this.drag.obj !== obj || this.drag.manual) return;
+      this.moveDrag(p);
     });
     this.input.on("dragend", (p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Container) => {
       if (!this.drag || this.drag.obj !== obj) return;
