@@ -67,7 +67,7 @@ export class BattleScene extends Phaser.Scene {
   lastScores: number[] = [];
   resultSent = false;
   tf = (side: Side) => (h: HeroId) => tierOf(this.g, side, h);
-  drag: { src: DragSrc; obj: Phaser.GameObjects.Container; ox: number; oy: number; hover: DropTarget } | null = null;
+  drag: { src: DragSrc; obj: Phaser.GameObjects.Container; ox: number; oy: number; hover: DropTarget; manual?: boolean } | null = null;
 
   remaining = ROUND_SECONDS;
   timerText!: Phaser.GameObjects.Text;
@@ -554,9 +554,20 @@ export class BattleScene extends Phaser.Scene {
     this.add.existing(obj);
     obj.setPosition(wx, wy).setRotation(0).setDepth(300).setScale(src.kind === "hand" ? 1.08 : 1.2).setAlpha(1);
     this.audio.play("draw");
-    this.drag = { src, obj, ox: wx - p.worldX, oy: wy - p.worldY, hover: null };
+    this.drag = { src, obj, ox: wx - p.worldX, oy: wy - p.worldY, hover: null, manual: src.kind === "hand" };
     this.setPeek(null);
     this.drawHighlights();
+  }
+
+  /** Shared drag-move logic for both Phaser-dragged (board) and manual (hand) drags. */
+  moveDrag(p: Phaser.Input.Pointer) {
+    const d = this.drag;
+    if (!d) return;
+    d.obj.setPosition(p.worldX + d.ox, p.worldY + d.oy);
+    const t = this.targetAt(p.worldX, p.worldY);
+    const same = JSON.stringify(t) === JSON.stringify(d.hover);
+    d.hover = t;
+    if (!same) this.drawHighlights();
   }
 
   setupDrag() {
