@@ -434,6 +434,13 @@ export class BattleScene extends Phaser.Scene {
       card.setPosition(p.x, p.y).setRotation(p.rot).setAlpha(afford ? 1 : 0.55);
       card.setInteractive({ useHandCursor: true, draggable: this.g.phase === "player" });
       card.setData("src", { kind: "hand", idx, uid: inst.uid } satisfies DragSrc);
+      card.setData("handCard", true);
+      // unaffordable: restrained dim + muted outline
+      if (!afford && this.g.phase === "player") {
+        const dim = this.add.graphics();
+        dim.lineStyle(2, 0x5a6a8a, 0.7).strokeRoundedRect(-w / 2, -hh / 2, w, hh, 8);
+        card.add(dim);
+      }
       this.tappable(card, viewOf(inst.id, this.tf("player")), {});
       if (!isHeroId(inst.id) && items[k]!.group !== items[k - 1]?.group) {
         const cnt = items.filter((it) => it.group === items[k]!.group).length;
@@ -456,6 +463,17 @@ export class BattleScene extends Phaser.Scene {
       }
       this.lastPower.delete(inst.uid);
     });
+  }
+
+  /** Topmost hand card whose bounds contain the world point (respects fan stacking). */
+  handCardAt(x: number, y: number): number {
+    for (let i = this.handCards.length - 1; i >= 0; i--) {
+      const { card } = this.handCards[i]!;
+      const m = card.getWorldTransformMatrix();
+      const inv = m.applyInverse(x, y);
+      if (Math.abs(inv.x) <= card.width / 2 && Math.abs(inv.y) <= card.height / 2) return i;
+    }
+    return -1;
   }
 
   /** Finger-slide peek: the card under the pointer lifts and grows; the rest settle. */
