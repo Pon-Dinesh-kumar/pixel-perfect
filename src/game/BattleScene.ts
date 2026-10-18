@@ -432,16 +432,16 @@ export class BattleScene extends Phaser.Scene {
       const card = createCard(this, viewOf(inst.id, this.tf("player")), w, hh, { hidePower: true });
       const afford = cardCost(inst.id) <= this.g.player.energy && this.g.phase === "player";
       card.setPosition(p.x, p.y).setRotation(p.rot).setAlpha(afford ? 1 : 0.55);
-      card.setInteractive({ useHandCursor: true, draggable: this.g.phase === "player" });
+      card.setInteractive({ useHandCursor: true });
       card.setData("src", { kind: "hand", idx, uid: inst.uid } satisfies DragSrc);
       card.setData("handCard", true);
+      card.setData("view", viewOf(inst.id, this.tf("player")));
       // unaffordable: restrained dim + muted outline
       if (!afford && this.g.phase === "player") {
         const dim = this.add.graphics();
         dim.lineStyle(2, 0x5a6a8a, 0.7).strokeRoundedRect(-w / 2, -hh / 2, w, hh, 8);
         card.add(dim);
       }
-      this.tappable(card, viewOf(inst.id, this.tf("player")), {});
       if (!isHeroId(inst.id) && items[k]!.group !== items[k - 1]?.group) {
         const cnt = items.filter((it) => it.group === items[k]!.group).length;
         if (cnt > 1) {
@@ -541,24 +541,61 @@ export class BattleScene extends Phaser.Scene {
   }
 
   // ---------- drag & drop ----------
+  /** Hand touch in progress: resolves to a tap (detail) or a deliberate drag. */
+  pendingHand: { i: number; x: number; y: number } | null = null;
+
+  beginDrag(obj: Phaser.GameObjects.Container, p: Phaser.Input.Pointer) {
+    const src = obj.getData("src") as DragSrc | undefined;
+    if (!src) return;
+    this.dragged = true;
+    const m = obj.getWorldTransformMatrix();
+    const wx = m.tx, wy = m.ty;
+    obj.parentContainer?.remove(obj);
+    this.add.existing(obj);
+    obj.setPosition(wx, wy).setRotation(0).setDepth(300).setScale(src.kind === "hand" ? 1.08 : 1.2).setAlpha(1);
+    this.audio.play("draw");
+    this.drag = { src, obj, ox: wx - p.worldX, oy: wy - p.worldY, hover: null };
+    this.setPeek(null);
+    this.drawHighlights();
+  }
+
   setupDrag() {
+    // Deterministic hand hit testing: the topmost card under the finger wins.
+    this.input.on("pointerdown", (p: Phaser.Input.Pointer) => {
+      this.pendingHand = null;
+      this.dragged = false;
+      if (this.g.phase !== "player" || this.detail || this.drag) return;
+      if (p.worldY < HAND_ZONE.y0) return;
+      const i = this.handCardAt(p.worldX, p.worldY);
+      if (i >= 0) this.pendingHand = { i, x: p.worldX, y: p.worldY };
+    });
+    this.input.on("pointerup", (p: Phaser.Input.Pointer) => {
+      const ph = this.pendingHand;
+      this.pendingHand = null;
+      if (!ph || this.dragged || this.drag || this.detail) return;
+      if (Math.hypot(p.worldX - ph.x, p.worldY - ph.y) > 12) return;
+      const hc = this.handCards[ph.i];
+      if (!hc) return;
+      const d = createDetail(this, hc.card.getData("view") as CardView, W, H, {});
+      this.detail = { close: d.close };
+      d.root.once("destroy", () => { this.detail = null; });
+    });
     this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
       if (this.drag || this.detail) return;
-      this.setPeek(p.y >= HAND_ZONE.y0 && p.x >= HAND_ZONE.x0 - 40 && p.x <= HAND_ZONE.x1 + 20 ? p.x : null);
+      if (this.pendingHand) {
+        const ph = this.pendingHand;
+        if (p.worldY < HAND_ZONE.y0 - 30 || Math.hypot(p.worldX - ph.x, p.worldY - ph.y) > 14) {
+          this.pendingHand = null;
+          const hc = this.handCards[ph.i];
+          if (hc) this.beginDrag(hc.card, p);
+          return;
+        }
+      }
+      this.setPeek(p.worldY >= HAND_ZONE.y0 && p.worldX >= HAND_ZONE.x0 - 40 && p.worldX <= HAND_ZONE.x1 + 20 ? p.worldX : null);
     });
     this.input.on("dragstart", (p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Container) => {
       if (this.drag || this.detail || this.g.phase !== "player") return;
-      this.dragged = true;
-      const src = obj.getData("src") as DragSrc | undefined;
-      if (!src) return;
-      const m = obj.getWorldTransformMatrix();
-      const wx = m.tx, wy = m.ty;
-      obj.parentContainer?.remove(obj);
-      this.add.existing(obj);
-      obj.setPosition(wx, wy).setDepth(300).setScale(src.kind === "hand" ? 1.08 : 1.2).setAlpha(1);
-      this.audio.play("draw");
-      this.drag = { src, obj, ox: wx - p.worldX, oy: wy - p.worldY, hover: null };
-      this.drawHighlights();
+      this.beginDrag(obj, p);
     });
     this.input.on("drag", (p: Phaser.Input.Pointer, obj: Phaser.GameObjects.Container) => {
       if (!this.drag || this.drag.obj !== obj) return;
