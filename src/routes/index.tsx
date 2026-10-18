@@ -7,9 +7,9 @@ import { CollectionPage, ComingSoon, MainPage } from "@/components/HomePages";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "SCENE — Carrier Card Battler" },
+      { title: "Citadel Wars — Carrier Card Battler" },
       { name: "description", content: "Collect 20 heroes, upgrade them to Apex, build an 8-hero deck and battle across three sky carriers." },
-      { property: "og:title", content: "SCENE — Carrier Card Battler" },
+      { property: "og:title", content: "Citadel Wars — Carrier Card Battler" },
       { property: "og:description", content: "Collect 20 heroes, upgrade them to Apex, build an 8-hero deck and battle across three sky carriers." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -49,7 +49,7 @@ function Home() {
   if (!p) return <Loading />;
   return (
     <main className="mx-auto flex h-dvh w-full max-w-md flex-col bg-background text-foreground">
-      <h1 className="sr-only">SCENE</h1>
+      <h1 className="sr-only">Citadel Wars</h1>
       <div ref={pager} onScroll={onScroll} className="no-scrollbar flex flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain">
         <section className="h-full w-full shrink-0 snap-center"><ComingSoon title="SHOP" line="Hero bundles, shard packs and skins." /></section>
         <section className="h-full w-full shrink-0 snap-center"><CollectionPage p={p} /></section>

@@ -8,10 +8,10 @@ import { HeroTile, Loading, Screen, useProfile } from "@/components/scene";
 export const Route = createFileRoute("/deck")({
   head: () => ({
     meta: [
-      { title: "Deck Builder — SCENE" },
-      { name: "description", content: "Build your SCENE battle deck from exactly 8 unique heroes." },
-      { property: "og:title", content: "Deck Builder — SCENE" },
-      { property: "og:description", content: "Build your SCENE battle deck from exactly 8 unique heroes." },
+      { title: "Deck Builder — Citadel Wars" },
+      { name: "description", content: "Build your Citadel Wars battle deck from exactly 8 unique heroes." },
+      { property: "og:title", content: "Deck Builder — Citadel Wars" },
+      { property: "og:description", content: "Build your Citadel Wars battle deck from exactly 8 unique heroes." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],

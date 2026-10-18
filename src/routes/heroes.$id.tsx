@@ -16,8 +16,8 @@ export const Route = createFileRoute("/heroes/$id")({
   },
   head: ({ loaderData }) => {
     const h = loaderData ? HERO_BY_ID[loaderData.id] : null;
-    const title = h ? `${h.name} — ${h.archetype} — SCENE` : "Hero — SCENE";
-    const desc = h ? h.description : "SCENE hero details.";
+    const title = h ? `${h.name} — ${h.archetype} — Citadel Wars` : "Hero — Citadel Wars";
+    const desc = h ? h.description : "Citadel Wars hero details.";
     return {
       meta: [
         { title }, { name: "description", content: desc },

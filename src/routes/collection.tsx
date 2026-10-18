@@ -7,10 +7,10 @@ import { HeroTile, Loading, Screen, Shards, useProfile } from "@/components/scen
 export const Route = createFileRoute("/collection")({
   head: () => ({
     meta: [
-      { title: "Hero Collection — SCENE" },
-      { name: "description", content: "Browse all 20 SCENE heroes, their passives, tiers and skill cards." },
-      { property: "og:title", content: "Hero Collection — SCENE" },
-      { property: "og:description", content: "Browse all 20 SCENE heroes, their passives, tiers and skill cards." },
+      { title: "Hero Collection — Citadel Wars" },
+      { name: "description", content: "Browse all 20 Citadel Wars heroes, their passives, tiers and skill cards." },
+      { property: "og:title", content: "Hero Collection — Citadel Wars" },
+      { property: "og:description", content: "Browse all 20 Citadel Wars heroes, their passives, tiers and skill cards." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],

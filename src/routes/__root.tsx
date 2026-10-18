@@ -81,8 +81,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { name: "screen-orientation", content: "portrait" },
       { name: "theme-color", content: "#0a0f1c" },
-      { title: "SCENE" },
-      { name: "description", content: "SCENE — carrier card battler prototype." },
+      { title: "Citadel Wars" },
+      { name: "description", content: "Citadel Wars — carrier card battler." },
     ],
     links: [
       { rel: "stylesheet", href: appCss },

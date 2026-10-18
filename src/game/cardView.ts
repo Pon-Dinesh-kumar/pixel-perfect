@@ -109,34 +109,32 @@ function addLogo(scene: Phaser.Scene, c: Phaser.GameObjects.Container, key: stri
 function tierFrame(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: CardView, w: number, h: number, r: number, big = false) {
   if (v.tier === "base" || v.skill) return;
   const glow = scene.add.graphics();
-  glow.lineStyle(big ? 5 : 3, v.color, 1).strokeRoundedRect(-w / 2 - 1, -h / 2 - 1, w + 2, h + 2, r + 1);
+  glow.lineStyle(big ? 4 : 2.5, v.color, 0.9).strokeRoundedRect(-w / 2 - 1, -h / 2 - 1, w + 2, h + 2, r + 1);
+  // High-tech corner bracket accents
+  const cs = Math.max(6, w * 0.12);
+  glow.lineStyle(big ? 2.5 : 1.5, 0xffffff, 0.85);
+  glow.lineBetween(-w / 2, -h / 2 + cs, -w / 2, -h / 2);
+  glow.lineBetween(-w / 2, -h / 2, -w / 2 + cs, -h / 2);
+  glow.lineBetween(w / 2 - cs, -h / 2, w / 2, -h / 2);
+  glow.lineBetween(w / 2, -h / 2, w / 2, -h / 2 + cs);
   c.add(glow);
-  scene.tweens.add({ targets: glow, alpha: 0.35, duration: 900, yoyo: true, repeat: -1, ease: "Sine.inOut" });
+  scene.tweens.add({ targets: glow, alpha: 0.45, duration: 900, yoyo: true, repeat: -1, ease: "Sine.inOut" });
+
   if (v.tier !== "apex") return;
   const aura = scene.add.graphics();
   aura.fillGradientStyle(v.color, v.color, v.color, v.color, 0.45, 0.45, 0, 0).fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h * 0.35);
   aura.setBlendMode(Phaser.BlendModes.ADD);
   c.add(aura);
-  scene.tweens.add({ targets: aura, alpha: 0.4, duration: 1400, yoyo: true, repeat: -1 });
-  const fx = HERO_EFFECTS[v.hero];
-  const count = big ? 26 : 8;
-  for (let k = 0; k < count; k++) {
-    const p = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
-    const radius = Math.max(3, w * (big ? 0.028 : 0.04));
-    const points = Array.from({ length: Math.max(3, fx.sides) }, (_, j) => ({
-      x: Math.cos(j / Math.max(3, fx.sides) * Math.PI * 2) * radius,
-      y: Math.sin(j / Math.max(3, fx.sides) * Math.PI * 2) * radius * (fx.sides === 2 ? 3 : 1),
-    }));
-    if (["chakra", "gravity", "clock", "kolam", "tide", "sonic"].includes(fx.motif)) {
-      p.lineStyle(Math.max(1, radius * 0.2), v.color).strokePoints(points, true, true);
-      if (fx.motif === "clock" || fx.motif === "kolam") p.lineBetween(-radius, 0, radius, 0).lineBetween(0, -radius, 0, radius);
-    } else p.fillStyle(v.color).fillPoints(points, true);
-    c.add(p);
-    const reset = () => p.setPosition(-w * 0.6 + (k / count) * w * 1.2, h / 2 - 6).setAlpha(1).setRotation(k);
-    reset();
-    scene.tweens.add({ targets: p, y: -h / 2 - 30, x: `+=${fx.drift * 1.4}`, rotation: `+=${fx.motif === "clock" ? -6.28 : 3.14}`,
-      alpha: 0, duration: fx.speed + 800, delay: k * 120, repeat: -1, onRepeat: reset });
-  }
+  scene.tweens.add({ targets: aura, alpha: 0.35, duration: 1400, yoyo: true, repeat: -1 });
+
+  // Diagonal holographic light sweep
+  const sweep = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+  sweep.fillGradientStyle(0xffffff, 0xffffff, v.color, v.color, 0.0, 0.35, 0.0, 0.35)
+    .fillRect(-w * 0.6, -h / 2, w * 0.3, h);
+  sweep.setAngle(20).setAlpha(0.35);
+  c.add(sweep);
+  scene.tweens.add({ targets: sweep, x: w * 1.2, duration: 2400, repeat: -1, ease: "Sine.inOut" });
+
 }
 
 /** Card for hand and board: art, name logo, cost and power only — no ability text (tap for details). */
@@ -147,10 +145,12 @@ export function createCard(scene: Phaser.Scene, v: CardView, w: number, h: numbe
   const accent = opts.enemy ? 0xff4a5e : v.ultimate ? GOLD : v.color;
   const b = 2;
 
+  // Layered dark tactical backing & contact shadow
   const base = scene.add.graphics();
-  base.fillStyle(0x000000, 0.5).fillRoundedRect(-w / 2 + 2, -h / 2 + 5, w, h, r);
-  base.fillStyle(0x0a0f1c, 1).fillRoundedRect(-w / 2, -h / 2, w, h, r);
+  base.fillStyle(0x01040a, 0.6).fillRoundedRect(-w / 2 + 2, -h / 2 + 4, w, h, r);
+  base.fillStyle(0x09111e, 1).fillRoundedRect(-w / 2, -h / 2, w, h, r);
   c.add(base);
+
   if (opts.concealed) {
     if (scene.textures.exists("card-back")) c.add(scene.add.image(0, 0, "card-back").setDisplaySize(w, h));
     c.setSize(w, h); return c;
@@ -158,24 +158,47 @@ export function createCard(scene: Phaser.Scene, v: CardView, w: number, h: numbe
   if (v.skill) skillArt(scene, c, v, w, h);
   else addArt(scene, c, v, -w / 2 + b, -h / 2 + b, w - b * 2, h - b * 2, 0);
 
+  // Gradient framing & hero-accented border
   const ov = scene.add.graphics();
-  ov.fillGradientStyle(0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0, 0, 0.95, 0.95).fillRect(-w / 2 + b, h * 0.05, w - b * 2, h / 2 - h * 0.05 - b);
-  ov.lineStyle(b, accent, 1).strokeRoundedRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2, v.skill ? r * 2 : r);
+  ov.fillGradientStyle(0x060c18, 0x060c18, 0x060c18, 0x060c18, 0, 0, 0.92, 0.92).fillRect(-w / 2 + b, h * 0.05, w - b * 2, h / 2 - h * 0.05 - b);
+  ov.lineStyle(b, accent, 0.95).strokeRoundedRect(-w / 2 + 1, -h / 2 + 1, w - 2, h - 2, v.skill ? r * 2 : r);
+  // Sleek inner hairline
+  ov.lineStyle(1, 0xffffff, 0.35).strokeRoundedRect(-w / 2 + 2.5, -h / 2 + 2.5, w - 5, h - 5, v.skill ? r * 2 : r);
   c.add(ov);
+
   tierFrame(scene, c, v, w, h, r);
   addForeground(scene, c, v, w, h);
+
+  // Bottom dark backing for nameplate clarity
   const fade = scene.add.graphics();
-  fade.fillGradientStyle(0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0x0a0f1c, 0, 0, 0.9, 0.9).fillRect(-w / 2 + b, h * 0.15, w - b * 2, h * 0.35 - b);
+  fade.fillGradientStyle(0x060c18, 0x060c18, 0x040812, 0x040812, 0, 0, 0.92, 0.92).fillRect(-w / 2 + b, h * 0.18, w - b * 2, h * 0.32 - b);
   c.add(fade);
+
+  // Hero accent energy rail on bottom
   const rail = scene.add.graphics();
-  rail.lineStyle(3, accent, 1).lineBetween(-w / 2 + r, h / 2 - 1, w / 2 - r, h / 2 - 1);
+  rail.lineStyle(3, accent, 1).lineBetween(-w / 2 + r + 2, h / 2 - 1.5, w / 2 - r - 2, h / 2 - 1.5);
+  rail.lineStyle(1.5, 0xffffff, 0.7).lineBetween(-w * 0.25, h / 2 - 1.5, w * 0.25, h / 2 - 1.5);
   c.add(rail);
 
   const showPower = v.power !== null && !opts.hidePower;
-  if (v.logo && scene.textures.exists(v.logo)) addLogo(scene, c, v.logo, h / 2 - h * 0.09, w * 0.86, h * 0.22, 0);
-  else {
-    const name = scene.add.text(0, h / 2 - h * 0.11, v.name, { fontFamily: FONT, fontSize: `${Math.max(12, Math.round(w * 0.15))}px`, color: "#f2f5ff", fontStyle: "700", stroke: "#0a0f1c", strokeThickness: 4, align: "center", wordWrap: { width: w * 0.95 } }).setOrigin(0.5);
-    if (name.width > w * 0.92) name.setScale((w * 0.92) / name.width);
+  if (v.logo && scene.textures.exists(v.logo)) {
+    addLogo(scene, c, v.logo, h / 2 - h * 0.09, w * 0.86, h * 0.22, 0);
+  } else {
+    // Translucent backing pill for hero name
+    const pill = scene.add.graphics();
+    pill.fillStyle(0x040814, 0.75).fillRoundedRect(-w * 0.44, h / 2 - h * 0.22, w * 0.88, h * 0.16, 4);
+    c.add(pill);
+    const name = scene.add.text(0, h / 2 - h * 0.14, v.name, {
+      fontFamily: FONT,
+      fontSize: `${Math.max(11, Math.round(w * 0.15))}px`,
+      color: "#f8fafc",
+      fontStyle: "900",
+      stroke: "#040814",
+      strokeThickness: 2.5,
+      align: "center",
+      wordWrap: { width: w * 0.92 }
+    }).setOrigin(0.5);
+    if (name.width > w * 0.86) name.setScale((w * 0.86) / name.width);
     c.add(name);
   }
 
@@ -184,22 +207,60 @@ export function createCard(scene: Phaser.Scene, v: CardView, w: number, h: numbe
   return c;
 }
 
-/** Compact tactical plates: energy top-left, power bottom-right; hero name stays centered. */
+/** Compact tactical plates: energy top-left (faceted blue hexagon), power bottom-right; hero name stays centered. */
 function badges(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: CardView, w: number, h: number, big: number, enemy?: boolean, power?: number) {
-  const size = big;
-  const x = -w / 2 + size * 0.3, y = -h / 2 + size * 0.3;
-  if (scene.textures.exists("badge-cost")) c.add(scene.add.image(x, y, "badge-cost").setDisplaySize(size, size));
-  c.add(scene.add.text(x, y + 1, `${v.cost}`, { fontFamily: FONT, fontSize: `${Math.round(big * 0.9)}px`, color: "#ffffff", fontStyle: "700", stroke: "#0a1a40", strokeThickness: 2 }).setOrigin(0.5));
+  const size = Math.max(22, Math.round(big * 1.05));
+  const bx = -w / 2 + size * 0.45, by = -h / 2 + size * 0.42;
+
+  // Tactical hexagonal energy badge (blue faceted plate like reference image)
+  const bg = scene.add.graphics();
+  const hex = [
+    { x: 0, y: -size * 0.52 },
+    { x: size * 0.48, y: -size * 0.26 },
+    { x: size * 0.48, y: size * 0.26 },
+    { x: 0, y: size * 0.52 },
+    { x: -size * 0.48, y: size * 0.26 },
+    { x: -size * 0.48, y: -size * 0.26 },
+  ];
+  // Drop shadow
+  bg.fillStyle(0x040814, 0.7).fillPoints(hex.map((p) => ({ x: bx + p.x + 1, y: by + p.y + 2 })), true);
+  // Outer metallic bezel
+  bg.fillStyle(0x0c254a, 1).fillPoints(hex.map((p) => ({ x: bx + p.x, y: by + p.y })), true);
+  // Inner blue gradient
+  bg.fillGradientStyle(0x1e88e5, 0x1e88e5, 0x0d47a1, 0x0d47a1, 1, 1, 1, 1).fillPoints(hex.map((p) => ({ x: bx + p.x * 0.88, y: by + p.y * 0.88 })), true);
+  // Precision electric cyan rim
+  bg.lineStyle(1.5, 0x38bdf8, 0.95).strokePoints(hex.map((p) => ({ x: bx + p.x * 0.88, y: by + p.y * 0.88 })), true, true);
+  c.add(bg);
+
+  const costTxt = scene.add.text(bx, by, `${v.cost}`, {
+    fontFamily: FONT,
+    fontSize: `${Math.round(size * 0.82)}px`,
+    color: "#ffffff",
+    fontStyle: "700",
+    stroke: "#061329",
+    strokeThickness: 2.5,
+  }).setOrigin(0.5);
+  c.add(costTxt);
+
   if (v.power === null) return;
-  const px = w / 2 - size * 0.3, py = h / 2 - size * 0.3;
+  const px = w / 2 - size * 0.45, py = h / 2 - size * 0.45;
   if (scene.textures.exists("badge-power")) {
     const plate = scene.add.image(px, py, "badge-power").setDisplaySize(size, size);
     if (enemy) plate.setTint(0xff7070);
     c.add(plate);
+  } else {
+    const pbg = scene.add.graphics();
+    const pCol = enemy ? 0xff4a5e : 0xf97316;
+    const pDark = enemy ? 0x7f1d1d : 0x7c2d12;
+    pbg.fillStyle(0x040814, 0.7).fillPoints(hex.map((p) => ({ x: px + p.x + 1, y: py + p.y + 2 })), true);
+    pbg.fillStyle(0x2d1208, 1).fillPoints(hex.map((p) => ({ x: px + p.x, y: py + p.y })), true);
+    pbg.fillGradientStyle(pCol, pCol, pDark, pDark, 1, 1, 1, 1).fillPoints(hex.map((p) => ({ x: px + p.x * 0.88, y: py + p.y * 0.88 })), true);
+    pbg.lineStyle(1.5, enemy ? 0xfca5a5 : 0xfdba74, 0.95).strokePoints(hex.map((p) => ({ x: px + p.x * 0.88, y: py + p.y * 0.88 })), true, true);
+    c.add(pbg);
   }
   const pw = power ?? v.power;
   const txt = enemy ? "#ffffff" : pw > v.power ? "#a0ffcb" : pw < v.power ? "#ffd0d7" : "#ffffff";
-  c.add(scene.add.text(px, py + 1, `${pw}`, { fontFamily: FONT, fontSize: `${Math.round(big * 0.9)}px`, color: txt, fontStyle: "700" }).setOrigin(0.5));
+  c.add(scene.add.text(px, py + 1, `${pw}`, { fontFamily: FONT, fontSize: `${Math.round(size * 0.82)}px`, color: txt, fontStyle: "700", stroke: "#040814", strokeThickness: 2 }).setOrigin(0.5));
 }
 
 /**
