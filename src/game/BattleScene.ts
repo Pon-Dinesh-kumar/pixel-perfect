@@ -581,6 +581,7 @@ export class BattleScene extends Phaser.Scene {
       if (i >= 0) this.pendingHand = { i, x: p.worldX, y: p.worldY };
     });
     this.input.on("pointerup", (p: Phaser.Input.Pointer) => {
+      if (this.drag?.manual) { this.finishDrag(this.targetAt(p.worldX, p.worldY)); this.pendingHand = null; return; }
       const ph = this.pendingHand;
       this.pendingHand = null;
       if (!ph || this.dragged || this.drag || this.detail) return;
@@ -592,7 +593,8 @@ export class BattleScene extends Phaser.Scene {
       d.root.once("destroy", () => { this.detail = null; });
     });
     this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
-      if (this.drag || this.detail) return;
+      if (this.drag) { if (this.drag.manual) this.moveDrag(p); return; }
+      if (this.detail) return;
       if (this.pendingHand) {
         const ph = this.pendingHand;
         if (p.worldY < HAND_ZONE.y0 - 30 || Math.hypot(p.worldX - ph.x, p.worldY - ph.y) > 14) {
