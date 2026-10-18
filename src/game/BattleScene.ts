@@ -264,6 +264,7 @@ export class BattleScene extends Phaser.Scene {
     this.deckGfx = this.add.graphics().setDepth(41);
     this.energyText = this.add.text(ENERGY_POS.x, ENERGY_POS.y, "", { fontFamily: FONT, fontSize: "38px", color: "#ffffff", fontStyle: "700" }).setOrigin(0.5).setDepth(42);
     this.add.text(ENERGY_POS.x, ENERGY_POS.y + 56, "ENERGY", { fontFamily: FONT, fontSize: "17px", color: "#7fd8ff", fontStyle: "600" }).setOrigin(0.5).setDepth(42);
+    this.deckText = this.add.text(DECK_POS.x, DECK_POS.y + 28, "", { fontFamily: FONT, fontSize: "22px", color: "#bfeaff", fontStyle: "700" }).setOrigin(0.5).setDepth(42);
 
     // End Turn: crimson angled plate.
     const b = this.add.container(END_POS.x, END_POS.y).setDepth(45);
@@ -350,18 +351,10 @@ export class BattleScene extends Phaser.Scene {
     this.totals.p.setText(`POWER ${pt}`);
     this.totals.o.setText(`POWER ${ot}`);
 
-    const e = g.player.energy, max = energyForDisplay(g.turn);
-    this.energyRing.clear();
-    this.energyRing.fillStyle(0x0d2550, 1).fillCircle(64, 1158, 50).lineStyle(2, CYAN, 0.5).strokeCircle(64, 1158, 56);
-    this.energyRing.lineStyle(8, 0x223355, 1).strokeCircle(64, 1158, 44);
-    if (e > 0) {
-      this.energyRing.lineStyle(8, CYAN, 1).beginPath()
-        .arc(64, 1158, 44, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * Math.min(e, max)) / Math.max(max, 1)).strokePath();
-    }
-    this.energyText.setText(`${e}/${max}`);
+    this.drawEnergy();
     const active = g.phase === "player";
     this.endBtn.setAlpha(active ? 1 : 0.45);
-    this.endLabel.setText(active ? "END\nTURN" : g.phase === "over" ? "DONE" : "LOCKED");
+    this.endLabel.setText(active ? "END TURN" : g.phase === "over" ? "DONE" : "LOCKED");
 
     this.drawBoard();
     this.drawHand();
