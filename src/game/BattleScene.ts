@@ -52,6 +52,9 @@ export class BattleScene extends Phaser.Scene {
   handGlow!: Phaser.GameObjects.Graphics;
   energyText!: Phaser.GameObjects.Text;
   energyRing!: Phaser.GameObjects.Graphics;
+  deckGfx!: Phaser.GameObjects.Graphics;
+  deckText!: Phaser.GameObjects.Text;
+  lastEnergy: number | undefined;
   turnText!: Phaser.GameObjects.Text;
   statusText!: Phaser.GameObjects.Text;
   endBtn!: Phaser.GameObjects.Container;
@@ -314,7 +317,7 @@ export class BattleScene extends Phaser.Scene {
     d.clear();
     const dx = DECK_POS.x, dy = DECK_POS.y;
     d.fillStyle(0x0d1a36, 0.95).fillRoundedRect(dx - 26, dy - 34, 52, 76, 8);
-    d.lineStyle(1.5, 0x3a5缀, 0).strokeRoundedRect(dx - 26, dy - 34, 52, 76, 8);
+    d.lineStyle(1.5, 0x3a5a8a, 0.8).strokeRoundedRect(dx - 26, dy - 34, 52, 76, 8);
     d.fillStyle(0x16264a, 1).fillRoundedRect(dx - 14, dy - 26, 28, 38, 4);
     d.fillStyle(0x1d3462, 1).fillRoundedRect(dx - 11, dy - 22, 28, 38, 4);
     d.fillStyle(0x24427a, 1).fillRoundedRect(dx - 8, dy - 18, 28, 38, 4);
