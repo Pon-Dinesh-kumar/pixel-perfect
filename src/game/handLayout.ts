@@ -105,8 +105,8 @@ export function zeroOverlapHandLayout(
   availableWidth: number,
   cardW: number,
   opts?: {
-    selectionIndex?: number;
-    liftY?: number;
+    selectionIndex?: number | undefined;
+    liftY?: number | undefined;
     enableCurve?: boolean;
     curveFactor?: number;
   }

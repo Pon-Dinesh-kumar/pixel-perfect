@@ -9,7 +9,7 @@ import { getHandCardDimensions, handLayout, nearestIndex, zeroOverlapHandLayout,
 import { HERO_BY_ID, isHeroId } from "./heroes";
 import {
   beginReveal, revealNext, ROUND_SECONDS, opponentTurn, canMove, canTakeBack, cardCost, energyForTurn, carrierScore, createGame, effectivePower, endPlayerTurn, isSkill, MAX_ENERGY, MAX_TURNS, moveCard,
-  nextTurn, opponentPlayOne, playCard, result, skillBlock, SLOTS, takeBack, tierOf, type DeckEntry, type GameState, type Outcome, type Side,
+  nextTurn, opponentPlayOne, playCard, result, skillBlock, SLOTS, takeBack, tierOf, type DeckEntry, type GameState, type Outcome, type Side, type CardInst,
 } from "./rules";
 
 export interface Assets {
@@ -152,7 +152,7 @@ export class BattleScene extends Phaser.Scene {
     this.assets.onReady?.();
   }
 
-  update(time: number) {
+  override update(time: number) {
     const basePositions = this.CARRIER_Y;
     for (let i = 0; i < this.carriers.length; i++) {
       const c = this.carriers[i];
