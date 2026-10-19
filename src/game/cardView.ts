@@ -63,8 +63,54 @@ function addForeground(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: 
   addArt(scene, c, { ...v, art: key }, -w * 0.53, -h / 2 - spill, w * 1.06, h + spill - 3, 0);
 }
 
-/** Placeholder skill art: weapon/ability emblem by effect type, tinted in the hero colour. */
+/** Rarity of a skill card: slot 1 = base, slot 2 = ascend, ultimate = apex. */
+const skillRarity = (id: string): Tier => (id.endsWith("-ult") ? "apex" : id.endsWith("-s2") ? "ascend" : "base");
+
+/** Live, rarity-scaled FX layered over painted skill art. Base: soft pulse. Ascend: rising embers + sweep. Apex: rotating sigil, storm sparks, gold flare. */
+function skillLiveFx(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: CardView, w: number, h: number) {
+  const rarity = skillRarity(v.id), col = v.color;
+  const cy = -h * 0.08, big = w > 200;
+  const glow = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+  for (let k = 5; k > 0; k--) glow.fillStyle(col, 0.07).fillCircle(0, cy, (w * 0.42 * k) / 5);
+  c.add(glow);
+  scene.tweens.add({ targets: glow, alpha: 0.35, duration: rarity === "base" ? 1600 : 1000, yoyo: true, repeat: -1, ease: "Sine.inOut" });
+  if (rarity === "base") return;
+
+  const n = (rarity === "apex" ? 18 : 9) * (big ? 2 : 1);
+  for (let i = 0; i < n; i++) {
+    const p = scene.add.circle(Phaser.Math.Between(-w * 0.42, w * 0.42), h * 0.4, Math.max(1.2, w * (rarity === "apex" ? 0.018 : 0.012)), rarity === "apex" && i % 3 === 0 ? GOLD : col, 1).setBlendMode(Phaser.BlendModes.ADD);
+    c.add(p);
+    scene.tweens.add({ targets: p, y: -h * 0.48, x: p.x + Phaser.Math.Between(-w * 0.1, w * 0.1), alpha: 0, duration: Phaser.Math.Between(1400, 2400), delay: i * 140, repeat: -1 });
+  }
+  const sweep = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+  sweep.fillStyle(0xffffff, 0.16).fillRect(-w * 0.12, -h / 2, w * 0.14, h);
+  sweep.setAngle(18).setX(-w);
+  c.add(sweep);
+  scene.tweens.add({ targets: sweep, x: w, duration: 2600, repeatDelay: rarity === "apex" ? 400 : 1600, repeat: -1, ease: "Sine.inOut" });
+  if (rarity !== "apex") return;
+
+  const sigil = scene.add.container(0, cy);
+  const ring = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+  const R = w * 0.38;
+  ring.lineStyle(Math.max(1.5, w * 0.012), GOLD, 0.8).strokeCircle(0, 0, R).lineStyle(1, col, 0.7).strokeCircle(0, 0, R * 0.78);
+  for (let k = 0; k < 12; k++) { const a = (k / 12) * Math.PI * 2; ring.lineBetween(Math.cos(a) * R * 0.78, Math.sin(a) * R * 0.78, Math.cos(a) * R, Math.sin(a) * R); }
+  sigil.add(ring);
+  c.add(sigil);
+  scene.tweens.add({ targets: sigil, angle: 360, duration: 9000, repeat: -1 });
+  scene.tweens.add({ targets: ring, alpha: 0.3, duration: 700, yoyo: true, repeat: -1 });
+  const flare = scene.add.circle(0, cy, w * 0.1, GOLD, 0.55).setBlendMode(Phaser.BlendModes.ADD);
+  c.add(flare);
+  scene.tweens.add({ targets: flare, scale: 1.8, alpha: 0.1, duration: 900, yoyo: true, repeat: -1, ease: "Sine.inOut" });
+}
+
+/** Painted skill art when available (with live FX), else placeholder emblem by effect type. */
 function skillArt(scene: Phaser.Scene, c: Phaser.GameObjects.Container, v: CardView, w: number, h: number) {
+  const key = skillArtKey(v.id);
+  if (scene.textures.exists(key)) {
+    addArt(scene, c, { ...v, art: key }, -w / 2 + 2, -h / 2 + 2, w - 4, h - 4, 0);
+    skillLiveFx(scene, c, v, w, h);
+    return;
+  }
   const g = scene.add.graphics();
   const col = v.ultimate ? GOLD : v.color;
   g.fillGradientStyle(0x0a0f1c, 0x0a0f1c, v.color, v.color, 1, 1, 0.55, 0.55).fillRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
@@ -310,7 +356,7 @@ export function createDetail(scene: Phaser.Scene, v: CardView, W: number, H: num
   card.add(rail);
   if (v.logo) addLogo(scene, card, v.logo, ch / 2 - ch * 0.09, cw * 0.86, ch * 0.22, 0);
   else card.add(scene.add.text(0, ch / 2 - 80, v.name, { fontFamily: FONT, fontSize: "60px", color: "#ffffff", fontStyle: "700", stroke: "#0a0f1c", strokeThickness: 6, align: "center", wordWrap: { width: cw - 40 } }).setOrigin(0.5));
-  if (v.skill) card.add(scene.add.text(0, -ch / 2 + 30, "SKILL ART COMING", { fontFamily: FONT, fontSize: "22px", color: "#9fb0d8", backgroundColor: "#0a0f1ccc", padding: { x: 8, y: 0 } }).setOrigin(0.5, 0));
+  if (v.skill && !scene.textures.exists(skillArtKey(v.id))) card.add(scene.add.text(0, -ch / 2 + 30, "SKILL ART COMING", { fontFamily: FONT, fontSize: "22px", color: "#9fb0d8", backgroundColor: "#0a0f1ccc", padding: { x: 8, y: 0 } }).setOrigin(0.5, 0));
   badges(scene, card, v, cw, ch, 92, opts.enemy, opts.power);
 
   // info panel
