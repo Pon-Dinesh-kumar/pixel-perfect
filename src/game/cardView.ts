@@ -3,6 +3,7 @@ import { HERO_EFFECTS } from "./heroEffects";
 import { HERO_BY_ID, isHeroId, type HeroId } from "./heroes";
 import { artKey, foregroundKey, logoKey } from "./heroArt";
 import { SKILL_BY_ID, type SkillEffect } from "./skills";
+import { skillArtKey } from "./skillArt";
 import { heroPower } from "./rules";
 import { TIER_LABEL, type Tier } from "./tiers";
 
