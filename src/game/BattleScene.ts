@@ -119,6 +119,7 @@ export class BattleScene extends Phaser.Scene {
         const tier = tierOf(this.g, side, id);
         keys.add(artKey(id, tier)); keys.add(logoKey(id));
         if (tier !== "base") keys.add(foregroundKey(id, tier));
+        for (const s of ["s1", "s2", "ult"]) keys.add(`skill-${id}-${s}`);
       }
     }
     for (const key of keys) { const url = this.assets.art[key]; if (url && !this.textures.exists(key)) this.load.image(key, url); }
