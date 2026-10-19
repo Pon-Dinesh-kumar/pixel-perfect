@@ -24,3 +24,4 @@
 - Destroy card tweens recursively before Phaser destroys container children — repeated state renders must not retain infinite animations.
 - Frame-break layers use separate transparent foreground assets, while original artwork remains clipped inside the card; battle preloads only matching upgraded foregrounds — preserves art and avoids opaque overflow or unnecessary downloads.
 - HeroPreview owns full rotation controls; HeroCard renders two backface-hidden faces using the same card-back asset as Phaser concealed cards — keeps previews and reveals visually consistent.
+- Skill art lives in src/assets/skills/{hero}/{s1,s2,ult}.jpg via skillArt.ts; cardView layers rarity-scaled live FX (s1 base, s2 ascend, ult apex) and falls back to procedural emblems when art is missing — lets heroes be rolled out one at a time.
