@@ -4,8 +4,11 @@ import { Button } from "@/components/ui/button";
 import costBadge from "@/assets/ui/cost.webp";
 import powerBadge from "@/assets/ui/power.webp";
 import cardBack from "@/assets/ui/card-back.jpg";
-import twilightSky from "@/assets/Twilight Twin-Faction Skylands.gif";
-import carrier from "@/assets/carrier-stylized.png";
+import twilightSkyAsset from "@/assets/twilight-sky.jpg.asset.json";
+import carrierAsset from "@/assets/carrier.png.asset.json";
+
+const twilightSky = twilightSkyAsset.url;
+const carrier = carrierAsset.url;
 import { HERO_ART, HERO_FOREGROUND, HERO_LOGO, artKey, foregroundKey, logoKey } from "@/game/heroArt";
 import { deckEntries, isValidDeck, loadProfile, reward, saveProfile } from "@/game/profile";
 import { isHeroId } from "@/game/heroes";
