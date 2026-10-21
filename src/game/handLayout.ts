@@ -207,8 +207,8 @@ export function handLayout(
 
   if (opts?.noOverlapRow) {
     return zeroOverlapHandLayout(n, cx, y, span, cardW, {
-      selectionIndex: opts.selection?.index,
-      liftY: opts.selection?.liftY,
+      ...(opts.selection?.index !== undefined ? { selectionIndex: opts.selection.index } : {}),
+      ...(opts.selection?.liftY !== undefined ? { liftY: opts.selection.liftY } : {}),
     });
   }
 

@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import sceneSkyWebp from "@/assets/scene-sky.webp";
-import sceneSkyGif from "@/assets/scene-sky.gif";
 import { HeroCard } from "@/components/HeroCard";
 import { Shards, TierBadge } from "@/components/scene";
 import { HEROES, HERO_BY_ID, type HeroId } from "@/game/heroes";
@@ -25,16 +24,13 @@ export function MainPage({ p }: { p: Profile }) {
   const hero = p.deck[show % p.deck.length]!;
   return (
     <div className="relative flex h-full flex-col overflow-hidden px-4 pb-4 pt-3">
-      <picture className="pointer-events-none absolute inset-0 h-full w-full select-none z-0">
-        <source srcSet={sceneSkyWebp} type="image/webp" />
-        <img
-          src={sceneSkyGif}
-          alt=""
-          decoding="async"
-          className="h-full w-full object-cover opacity-60 select-none pointer-events-none"
-          style={{ transform: "translate3d(0, 0, 0)", willChange: "transform", backfaceVisibility: "hidden" }}
-        />
-      </picture>
+      <img
+        src={sceneSkyWebp}
+        alt=""
+        decoding="async"
+        className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-60 select-none z-0"
+        style={{ transform: "translate3d(0, 0, 0)", willChange: "transform", backfaceVisibility: "hidden" }}
+      />
       <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-transparent to-background" />
       <div className="relative z-10"><TopBar p={p} /></div>
       <div className="relative z-10 mt-2 text-center font-display text-5xl font-bold tracking-[0.16em]">CITADEL WARS</div>

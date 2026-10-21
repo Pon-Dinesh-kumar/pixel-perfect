@@ -9,7 +9,7 @@ import { getHandCardDimensions, handLayout, nearestIndex, zeroOverlapHandLayout,
 import { HERO_BY_ID, isHeroId } from "./heroes";
 import {
   beginReveal, revealNext, ROUND_SECONDS, opponentTurn, canMove, canTakeBack, cardCost, energyForTurn, carrierScore, createGame, effectivePower, endPlayerTurn, isSkill, MAX_ENERGY, MAX_TURNS, moveCard,
-  nextTurn, opponentPlayOne, playCard, result, skillBlock, SLOTS, takeBack, tierOf, type DeckEntry, type GameState, type Outcome, type Side,
+  nextTurn, opponentPlayOne, playCard, result, skillBlock, SLOTS, takeBack, tierOf, type CardInst, type DeckEntry, type GameState, type Outcome, type Side,
 } from "./rules";
 
 export interface Assets {
@@ -151,7 +151,7 @@ export class BattleScene extends Phaser.Scene {
     this.assets.onReady?.();
   }
 
-  update(time: number) {
+  override update(time: number) {
     const basePositions = this.CARRIER_Y;
     for (let i = 0; i < this.carriers.length; i++) {
       const c = this.carriers[i];
@@ -974,7 +974,7 @@ export class BattleScene extends Phaser.Scene {
     const cx = W / 2;
 
     const pos = zeroOverlapHandLayout(n, cx, cardCenterY, availableWidth, cardW, {
-      selectionIndex: this.selectedCardIndex >= 0 ? this.selectedCardIndex : undefined,
+      ...(this.selectedCardIndex >= 0 ? { selectionIndex: this.selectedCardIndex } : {}),
       liftY: 26,
       enableCurve: true,
     });
@@ -1072,7 +1072,7 @@ export class BattleScene extends Phaser.Scene {
     const cardCenterY = (this.H - 128) - cardH / 2;
 
     const pos = zeroOverlapHandLayout(n, W / 2, cardCenterY, availableWidth, cardW, {
-      selectionIndex: targetK >= 0 ? targetK : undefined,
+      ...(targetK >= 0 ? { selectionIndex: targetK } : {}),
       liftY: 26,
       enableCurve: true,
     });
